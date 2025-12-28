@@ -641,6 +641,8 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     if 'OS/2' in merged_font:
         # Set PANOSE bProportion to 9 (monospace)
         merged_font['OS/2'].panose.bProportion = 9
+        # Set xAvgCharWidth to the half-width for proper monospace rendering
+        merged_font['OS/2'].xAvgCharWidth = cjk_half_width
 
     # Save the merged font
     print(f"Saving merged font to: {output_path}")
