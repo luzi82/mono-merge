@@ -12,6 +12,69 @@ import yaml
 from fontTools.ttLib import TTFont
 
 
+def get_char_bounds(font_path, text, font_index=0):
+    """Get bounding box information for each character in text"""
+    try:
+        ttfont = TTFont(font_path, fontNumber=font_index)
+        cmap = ttfont.getBestCmap()
+        
+        if not cmap:
+            return {'error': 'No character map found'}
+        
+        # Check if font is TrueType (glyf) or OpenType/CFF (CFF )
+        glyf = ttfont.get('glyf')
+        cff = ttfont.get('CFF ')
+        
+        if cff:
+            # OpenType/CFF font
+            cff_dict = cff.cff[0]
+            char_strings = cff_dict.CharStrings
+        
+        char_bounds = []
+        for char in text:
+            codepoint = ord(char)
+            char_info = {
+                'char': char,
+                'codepoint': codepoint,
+                'codepoint_hex': f'U+{codepoint:04X}'
+            }
+            
+            if codepoint in cmap:
+                glyph_name = cmap[codepoint]
+                char_info['glyph_name'] = glyph_name
+                
+                try:
+                    if glyf and glyph_name in glyf:
+                        # TrueType font
+                        glyph = glyf[glyph_name]
+                        if hasattr(glyph, 'xMin') and hasattr(glyph, 'yMin'):
+                            char_info['yMin'] = glyph.yMin
+                            char_info['yMax'] = glyph.yMax
+                            char_info['xMin'] = glyph.xMin
+                            char_info['xMax'] = glyph.xMax
+                    elif cff and glyph_name in char_strings:
+                        # OpenType/CFF font
+                        charstring = char_strings[glyph_name]
+                        bounds = charstring.calcBounds(char_strings)
+                        if bounds:
+                            xMin, yMin, xMax, yMax = bounds
+                            char_info['yMin'] = yMin
+                            char_info['yMax'] = yMax
+                            char_info['xMin'] = xMin
+                            char_info['xMax'] = xMax
+                except Exception as e:
+                    char_info['bounds_error'] = str(e)
+            else:
+                char_info['not_in_cmap'] = True
+            
+            char_bounds.append(char_info)
+        
+        ttfont.close()
+        return char_bounds
+    except Exception as e:
+        return {'error': str(e)}
+
+
 def get_font_info(font_path, font_index=0):
     """Extract font information for debugging"""
     try:
@@ -254,6 +317,10 @@ def main():
     print("\nExtracting font information...")
     font_info = get_font_info(font_path, args.font_index)
     
+    # Get character bounds
+    print("Extracting character bounds...")
+    char_bounds = get_char_bounds(font_path, args.test_text, args.font_index)
+    
     # Render text preview
     print("Rendering text preview...")
     output_png, render_info = render_text_preview(
@@ -271,6 +338,7 @@ def main():
         'font_index': args.font_index,
         'test_text': args.test_text,
         'font_info': font_info,
+        'char_bounds': char_bounds,
         'render_info': render_info
     }
     

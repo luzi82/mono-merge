@@ -80,11 +80,12 @@ def get_latin_width(font):
     return Counter(widths).most_common(1)[0][0]
 
 
-def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name, scale, glyphs_added_map, new_glyphs_list):
+def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name, scale, glyphs_added_map, new_glyphs_list, y_offset=0):
     """
     Copy glyph from latin_font to cjk_font, scaling it.
     glyphs_added_map: maps latin_glyph_name -> new_cjk_glyph_name (for components)
     new_glyphs_list: list to append new component glyph names to (for glyphOrder)
+    y_offset: vertical offset to apply to the glyph
     """
     if isinstance(latin_glyph_name, int):
         latin_glyph_name = latin_font.getGlyphName(latin_glyph_name)
@@ -123,7 +124,7 @@ def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name
         pen = TTGlyphPen(cjk_glyf)
         for comp in src_glyph.components:
             # Recursively copy component
-            new_comp_name = copy_glyph_from_latin(latin_font, cjk_font, comp.glyphName, None, scale, glyphs_added_map, new_glyphs_list)
+            new_comp_name = copy_glyph_from_latin(latin_font, cjk_font, comp.glyphName, None, scale, glyphs_added_map, new_glyphs_list, y_offset)
 
 
 
@@ -137,9 +138,9 @@ def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name
                     yx, yy = comp.transform[1]
                 dx, dy = comp.x, comp.y
                 
-                # Scale translation
+                # Scale translation and apply y_offset
                 dx = int(round(dx * scale))
-                dy = int(round(dy * scale))
+                dy = int(round(dy * scale)) + y_offset
                 
                 pen.addComponent(new_comp_name, (xx, xy, yx, yy, dx, dy))
         
@@ -147,8 +148,8 @@ def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name
     else:
         # Simple glyph
         pen = TTGlyphPen(cjk_glyf)
-        # Scale it
-        transform_pen = TransformPen(pen, (scale, 0, 0, scale, 0, 0))
+        # Scale and apply y_offset
+        transform_pen = TransformPen(pen, (scale, 0, 0, scale, 0, y_offset))
         src_glyph.draw(transform_pen, latin_glyf)
         cjk_glyf[cjk_glyph_name] = pen.glyph()
         
@@ -170,7 +171,38 @@ def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name
     return cjk_glyph_name
 
 
-def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None):
+def apply_y_offset_to_glyphs(font, y_offset, exclude_glyphs=None):
+    """
+    Apply a vertical offset to all glyphs in the font.
+    exclude_glyphs: set of glyph names to skip (e.g., Latin glyphs already processed)
+    """
+    if y_offset == 0:
+        return
+    
+    if exclude_glyphs is None:
+        exclude_glyphs = set()
+    
+    glyf_table = font['glyf']
+    
+    for glyph_name in font.getGlyphOrder():
+        if glyph_name in exclude_glyphs or glyph_name not in glyf_table:
+            continue
+        
+        glyph = glyf_table[glyph_name]
+        
+        if glyph.isComposite():
+            # For composite glyphs, adjust component translations
+            for comp in glyph.components:
+                comp.y += y_offset
+        elif glyph.numberOfContours > 0:
+            # For simple glyphs, shift all coordinates
+            for coord_list in [glyph.coordinates]:
+                for i in range(len(coord_list)):
+                    x, y = coord_list[i]
+                    coord_list[i] = (x, y + y_offset)
+
+
+def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0):
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
@@ -301,7 +333,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
                 latin_glyph_name = latin_cmap[codepoint]
                 
                 # Copy and scale glyph
-                copy_glyph_from_latin(latin_font, merged_font, latin_glyph_name, glyph_name, scale, glyphs_added_map, new_component_glyphs)
+                copy_glyph_from_latin(latin_font, merged_font, latin_glyph_name, glyph_name, scale, glyphs_added_map, new_component_glyphs, latin_y_offset)
                 
                 # Force width to be exactly cjk_half_width
                 l_w, l_lsb = latin_font['hmtx'][latin_glyph_name]
@@ -324,6 +356,11 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
 
     print(f"Replaced {count_replaced} half-width glyphs with Latin font.")
     print(f"Kept {count_kept} glyphs (full-width or missing in Latin).")
+    
+    # Apply CJK y-offset if specified
+    if cjk_y_offset != 0:
+        print(f"Applying CJK y-offset: {cjk_y_offset} units...")
+        apply_y_offset_to_glyphs(merged_font, cjk_y_offset, exclude_glyphs=set(glyphs_added_map.values()) | set(new_component_glyphs))
     
     # Add new component glyphs to glyphOrder
     if new_component_glyphs:
@@ -445,6 +482,20 @@ Examples:
         type=str,
         help='Specific characters to include from CJK font (for debugging/testing)'
     )
+
+    parser.add_argument(
+        '--latin-y-offset',
+        type=int,
+        default=0,
+        help='Vertical offset (in font units) to apply to Latin glyphs (default: 0)'
+    )
+
+    parser.add_argument(
+        '--cjk-y-offset',
+        type=int,
+        default=0,
+        help='Vertical offset (in font units) to apply to CJK glyphs (default: 0)'
+    )
     
     args = parser.parse_args()
     
@@ -484,7 +535,9 @@ Examples:
         str(output_path),
         args.cjk_index,
         font_name,
-        filter_chars=args.char
+        filter_chars=args.char,
+        latin_y_offset=args.latin_y_offset,
+        cjk_y_offset=args.cjk_y_offset
     )
     
     return 0 if success else 1

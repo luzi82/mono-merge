@@ -12,15 +12,66 @@ from pathlib import Path
 from fontTools import ttLib
 
 
-def analyze_font_y_values(font_path, ttc_index=0, threshold_percentile=95):
+def is_ascii_char(codepoint):
+    """Check if a codepoint is an ASCII character."""
+    # ASCII range: 0x0000-0x007F (0-127)
+    return 0x0000 <= codepoint <= 0x007F
+
+
+def is_latin_char(codepoint):
+    """Check if a codepoint is a Latin character."""
+    # Basic Latin (0x0000-0x007F)
+    # Latin-1 Supplement (0x0080-0x00FF)
+    # Latin Extended-A (0x0100-0x017F)
+    # Latin Extended-B (0x0180-0x024F)
+    # Latin Extended Additional (0x1E00-0x1EFF)
+    return (
+        (0x0000 <= codepoint <= 0x007F) or
+        (0x0080 <= codepoint <= 0x00FF) or
+        (0x0100 <= codepoint <= 0x017F) or
+        (0x0180 <= codepoint <= 0x024F) or
+        (0x1E00 <= codepoint <= 0x1EFF)
+    )
+
+
+def is_cjk_char(codepoint):
+    """Check if a codepoint is a CJK character."""
+    # CJK Unified Ideographs (0x4E00-0x9FFF)
+    # CJK Unified Ideographs Extension A (0x3400-0x4DBF)
+    # CJK Unified Ideographs Extension B (0x20000-0x2A6DF)
+    # CJK Unified Ideographs Extension C (0x2A700-0x2B73F)
+    # CJK Unified Ideographs Extension D (0x2B740-0x2B81F)
+    # CJK Unified Ideographs Extension E (0x2B820-0x2CEAF)
+    # CJK Unified Ideographs Extension F (0x2CEB0-0x2EBEF)
+    # CJK Compatibility Ideographs (0xF900-0xFAFF)
+    # CJK Compatibility Ideographs Supplement (0x2F800-0x2FA1F)
+    # Hiragana (0x3040-0x309F)
+    # Katakana (0x30A0-0x30FF)
+    # Hangul Syllables (0xAC00-0xD7AF)
+    return (
+        (0x4E00 <= codepoint <= 0x9FFF) or
+        (0x3400 <= codepoint <= 0x4DBF) or
+        (0x20000 <= codepoint <= 0x2A6DF) or
+        (0x2A700 <= codepoint <= 0x2B73F) or
+        (0x2B740 <= codepoint <= 0x2B81F) or
+        (0x2B820 <= codepoint <= 0x2CEAF) or
+        (0x2CEB0 <= codepoint <= 0x2EBEF) or
+        (0xF900 <= codepoint <= 0xFAFF) or
+        (0x2F800 <= codepoint <= 0x2FA1F) or
+        (0x3040 <= codepoint <= 0x309F) or
+        (0x30A0 <= codepoint <= 0x30FF) or
+        (0xAC00 <= codepoint <= 0xD7AF)
+    )
+
+
+def analyze_font_y_values(font_path, ttc_index=0, threshold_percentile=95, char_filter=None):
     """
     Analyze font glyphs for extreme y-values.
     
     Args:
         font_path: Path to the font file (TTF, OTF, TTC)
         ttc_index: Index for TTC files (default: 0)
-        threshold_percentile: Percentile to consider as extreme (default: 95)
-    
+        threshold_percentile: Percentile to consider as extreme (default: 95)        char_filter: Filter to apply ('latin', 'cjk', or None for all)    
     Returns:
         Dictionary with analysis results
     """
@@ -33,19 +84,36 @@ def analyze_font_y_values(font_path, ttc_index=0, threshold_percentile=95):
         print("Error: No character map found in font", file=sys.stderr)
         return None
     
-    # Get glyf table for bounding boxes
+    # Determine if font is TrueType (glyf) or OpenType/CFF (CFF )
     glyf = font.get('glyf')
-    if not glyf:
-        print("Error: No 'glyf' table found in font", file=sys.stderr)
+    cff = font.get('CFF ')
+    
+    if not glyf and not cff:
+        print("Error: Font has neither 'glyf' (TrueType) nor 'CFF ' (OpenType) table", file=sys.stderr)
         return None
+    
+    # For CFF fonts, we need to use the CFF table
+    if cff:
+        cff_dict = cff.cff[0]
+        char_strings = cff_dict.CharStrings
     
     # Collect y-values for all glyphs
     glyph_data = []
     
     for codepoint, glyph_name in cmap.items():
+        # Apply character filter
+        if char_filter == 'ascii' and not is_ascii_char(codepoint):
+            continue
+        elif char_filter == 'latin' and not is_latin_char(codepoint):
+            continue
+        elif char_filter == 'cjk' and not is_cjk_char(codepoint):
+            continue
+        
         try:
-            # Get glyph from glyf table
-            if glyph_name in glyf:
+            xMin, yMin, xMax, yMax = None, None, None, None
+            
+            if glyf and glyph_name in glyf:
+                # TrueType font
                 glyph = glyf[glyph_name]
                 
                 # Check if glyph has bounding box attributes
@@ -54,16 +122,26 @@ def analyze_font_y_values(font_path, ttc_index=0, threshold_percentile=95):
                     yMin = glyph.yMin
                     xMax = glyph.xMax
                     yMax = glyph.yMax
-                    char = chr(codepoint)
-                    
-                    glyph_data.append({
-                        'codepoint': codepoint,
-                        'char': char,
-                        'glyph_name': glyph_name,
-                        'yMin': yMin,
-                        'yMax': yMax,
-                        'y_range': yMax - yMin
-                    })
+            
+            elif cff and glyph_name in char_strings:
+                # OpenType/CFF font
+                charstring = char_strings[glyph_name]
+                # Get bounding box by calculating bounds
+                bounds = charstring.calcBounds(char_strings)
+                if bounds:
+                    xMin, yMin, xMax, yMax = bounds
+            
+            if xMin is not None and yMin is not None:
+                char = chr(codepoint)
+                
+                glyph_data.append({
+                    'codepoint': codepoint,
+                    'char': char,
+                    'glyph_name': glyph_name,
+                    'yMin': yMin,
+                    'yMax': yMax,
+                    'y_range': yMax - yMin
+                })
         except Exception as e:
             # Skip glyphs that can't be processed
             pass
@@ -171,6 +249,12 @@ Examples:
                         help='Maximum number of outliers to show per category (default: 20)')
     parser.add_argument('--all', action='store_true',
                         help='Show all outliers (ignore --limit)')
+    parser.add_argument('--ascii', action='store_true',
+                        help='Only analyze ASCII characters (0x00-0x7F)')
+    parser.add_argument('--latin', action='store_true',
+                        help='Only analyze Latin characters')
+    parser.add_argument('--cjk', action='store_true',
+                        help='Only analyze CJK characters')
     
     args = parser.parse_args()
     
@@ -185,9 +269,24 @@ Examples:
         print("Error: Percentile must be between 50 and 100", file=sys.stderr)
         sys.exit(1)
     
+    # Validate filter flags (mutually exclusive)
+    filter_count = sum([args.ascii, args.latin, args.cjk])
+    if filter_count > 1:
+        print("Error: Cannot use multiple character filter flags (--ascii, --latin, --cjk)", file=sys.stderr)
+        sys.exit(1)
+    
+    # Determine character filter
+    char_filter = None
+    if args.ascii:
+        char_filter = 'ascii'
+    elif args.latin:
+        char_filter = 'latin'
+    elif args.cjk:
+        char_filter = 'cjk'
+    
     # Analyze font
     try:
-        results = analyze_font_y_values(args.font, args.index, args.percentile)
+        results = analyze_font_y_values(args.font, args.index, args.percentile, char_filter)
         if results:
             print_results(results, args.all, args.limit)
     except Exception as e:
