@@ -80,7 +80,7 @@ def get_font_info(font_path, font_index=0):
         return {'error': str(e)}
 
 
-def render_text_preview(font_path, text, output_prefix, font_size=48, font_index=0):
+def render_text_preview(font_path, text, output_prefix, font_size=48, font_index=0, debug=False):
     """Render text using the specified font and save as PNG"""
     try:
         # Create image with white background
@@ -111,6 +111,55 @@ def render_text_preview(font_path, text, output_prefix, font_size=48, font_index
         # Draw text
         draw.text((x, y), text, fill=text_color, font=font)
         
+        if debug:
+            # Get font metrics
+            ascent, descent = font.getmetrics()
+            
+            # Calculate lines based on anchor 'la' (Left, Ascender) which is default for draw.text?
+            # Actually, let's check the bbox relative to (x,y) to be sure where things are.
+            real_bbox = draw.textbbox((x, y), text, font=font)
+            
+            # Draw bounding box (Orange)
+            draw.rectangle(real_bbox, outline=(255, 165, 0), width=1)
+            
+            # Assuming default anchor 'la' (Left, Ascender)
+            # (x, y) is the top-left of the em-square (ascender line)
+            # But wait, if we used (x,y) calculated from bbox to center it, 
+            # we need to know what (x,y) represents.
+            # draw.text((x,y), ...) draws at (x,y).
+            # If default anchor is 'la', then y is the ascender line.
+            
+            baseline_y = y + ascent
+            ascent_y = y
+            descent_y = y + ascent + descent
+            
+            # Draw Baseline (Blue)
+            draw.line([(0, baseline_y), (img_width, baseline_y)], fill=(0, 0, 255), width=1)
+            
+            # Draw Ascender (Green)
+            draw.line([(0, ascent_y), (img_width, ascent_y)], fill=(0, 255, 0), width=1)
+            
+            # Draw Descender (Red)
+            draw.line([(0, descent_y), (img_width, descent_y)], fill=(255, 0, 0), width=1)
+            
+            # Draw per-character vertical lines and boxes
+            curr_x = x
+            for char in text:
+                # Draw vertical line at start of char (Cyan)
+                draw.line([(curr_x, 0), (curr_x, img_height)], fill=(0, 255, 255), width=1)
+                
+                # Get char width
+                char_width = font.getlength(char)
+                
+                # Draw char bbox (Light Gray)
+                char_bbox = draw.textbbox((curr_x, y), char, font=font)
+                draw.rectangle(char_bbox, outline=(200, 200, 200), width=1)
+                
+                curr_x += char_width
+            
+            # Draw final vertical line
+            draw.line([(curr_x, 0), (curr_x, img_height)], fill=(0, 255, 255), width=1)
+
         # Save image
         output_png = f"{output_prefix}.png"
         image.save(output_png)
@@ -172,6 +221,11 @@ def main():
         default=0,
         help='Font index for TTC files (default: 0)'
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug output (bounding boxes, lines)'
+    )
     
     args = parser.parse_args()
     
@@ -198,7 +252,8 @@ def main():
         args.test_text,
         args.output_prefix,
         args.font_size,
-        args.font_index
+        args.font_index,
+        debug=args.debug
     )
     
     # Prepare debug YAML
