@@ -316,6 +316,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     print("Processing glyphs...")
     count_replaced = 0
     count_kept = 0
+    count_normalized = 0
     
     # Iterate over all characters in CJK font
     for codepoint, glyph_name in cjk_cmap.items():
@@ -324,6 +325,10 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             
         # Get current width
         current_width = cjk_hmtx[glyph_name][0]
+        
+        # Skip zero-width glyphs (combining marks, etc.)
+        if current_width == 0:
+            continue
         
         # 2. For half-width char, use Latin font, otherwise use CJK font
         # Check if it matches half-width (allow small tolerance)
@@ -351,11 +356,25 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             cjk_hmtx[glyph_name] = (cjk_full_width, cjk_hmtx[glyph_name][1])
             count_kept += 1
         else:
-            # Other width? Keep as is.
-            pass
+            # Other width - normalize to nearest standard width for monospace alignment
+            # Determine if closer to half-width or full-width
+            dist_to_half = abs(current_width - cjk_half_width)
+            dist_to_full = abs(current_width - cjk_full_width)
+            
+            if dist_to_half < dist_to_full:
+                # Closer to half-width, normalize to half-width
+                cjk_hmtx[glyph_name] = (cjk_half_width, cjk_hmtx[glyph_name][1])
+                count_normalized += 1
+            else:
+                # Closer to full-width, normalize to full-width
+                cjk_hmtx[glyph_name] = (cjk_full_width, cjk_hmtx[glyph_name][1])
+                count_normalized += 1
 
     print(f"Replaced {count_replaced} half-width glyphs with Latin font.")
     print(f"Kept {count_kept} glyphs (full-width or missing in Latin).")
+    if count_normalized > 0:
+        print(f"Normalized {count_normalized} glyphs to standard widths for monospace alignment.")
+
     
     # Apply CJK y-offset if specified
     if cjk_y_offset != 0:
