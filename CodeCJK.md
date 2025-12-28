@@ -6,7 +6,7 @@ CodeCJK is a font file combining Consola and NotoSansMonoCJKhk-Regular, generate
 
 https://www.dropbox.com/scl/fo/b7ge8rq1qrsyc2ogckm9m/AKgcHOA4FOL8SWtWJpJM1SI?rlkey=5r2xlds9ar2g3f18obl3b7m5t&st=tzueh14z&dl=0
 
-The file is not put to GitHub directly because there is license issue.
+The file is not put to GitHub directly because of license issue.
 
 ## How to create the ttf file?
 
