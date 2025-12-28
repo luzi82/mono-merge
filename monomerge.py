@@ -387,34 +387,66 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
         glyph_order = merged_font.getGlyphOrder()
         merged_font.setGlyphOrder(glyph_order + new_component_glyphs)
 
-    # Remove DSIG
+    # Remove unnecessary metadata tables
+    # DSIG: Digital signature - not needed for display
     if 'DSIG' in merged_font:
         del merged_font['DSIG']
+    
+    # meta: Metadata table - not needed for display
+    if 'meta' in merged_font:
+        del merged_font['meta']
+    
+    # Simplify post table to remove glyph name strings (use format 3.0)
+    if 'post' in merged_font:
+        post_table = merged_font['post']
+        # Format 3.0 = no glyph names stored, saves space and removes metadata
+        post_table.formatType = 3.0
+        post_table.extraNames = []
+        post_table.mapping = {}
 
-    # Update Name Table
-    if font_name:
-        print(f"Setting font name to: {font_name}")
-        name_table = merged_font['name']
-        family_name = font_name
-        subfamily_name = 'Regular'
-        full_name = f"{font_name} {subfamily_name}".strip()
-        unique_name = f"{font_name} {datetime.now().strftime('%Y%m%d')}"
-        ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
+    # Update Name Table - clean metadata and keep only essential fields
+    print(f"Cleaning metadata and setting font name to: {font_name}")
+    name_table = merged_font['name']
+    family_name = font_name
+    subfamily_name = 'Regular'
+    full_name = f"{font_name} {subfamily_name}".strip()
+    unique_name = f"{font_name}-MonoMerge"
+    ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
+    metadata_text = 'created by MonoMerge'
 
-        def set_name_all_platforms(name_id, value):
-            if value is None: return
-            name_table.setName(value, name_id, 3, 1, 0x409)
-            name_table.setName(value, name_id, 1, 0, 0)
-            name_table.setName(value, name_id, 0, 3, 0)
+    def set_name_all_platforms(name_id, value):
+        if value is None: return
+        name_table.setName(value, name_id, 3, 1, 0x409)
+        name_table.setName(value, name_id, 1, 0, 0)
+        name_table.setName(value, name_id, 0, 3, 0)
 
-        name_ids_to_clean = {1, 2, 3, 4, 6, 16, 17, 21, 22}
-        name_table.names = [r for r in name_table.names if r.nameID not in name_ids_to_clean]
+    # Remove all existing name records and keep only essential ones
+    name_table.names = []
 
-        set_name_all_platforms(1, family_name)
-        set_name_all_platforms(2, subfamily_name)
-        set_name_all_platforms(3, unique_name)
-        set_name_all_platforms(4, full_name)
-        set_name_all_platforms(6, ps_name)
+    # Essential name IDs for display:
+    # 0: Copyright - fill with metadata text
+    # 1: Font Family name - keep user's font name
+    # 2: Font Subfamily name
+    # 3: Unique font identifier
+    # 4: Full font name
+    # 5: Version string - fill with metadata text
+    # 6: PostScript name
+    # 8: Manufacturer - fill with metadata text
+    # 9: Designer - fill with metadata text
+    # 11: Vendor URL - fill with metadata text
+    # 13: License Description - fill with metadata text
+    
+    set_name_all_platforms(0, metadata_text)  # Copyright
+    set_name_all_platforms(1, family_name)  # Font Family
+    set_name_all_platforms(2, subfamily_name)  # Subfamily
+    set_name_all_platforms(3, unique_name)  # Unique ID
+    set_name_all_platforms(4, full_name)  # Full name
+    set_name_all_platforms(5, metadata_text)  # Version
+    set_name_all_platforms(6, ps_name)  # PostScript name
+    set_name_all_platforms(8, metadata_text)  # Manufacturer
+    set_name_all_platforms(9, metadata_text)  # Designer
+    set_name_all_platforms(11, metadata_text)  # Vendor URL
+    set_name_all_platforms(13, metadata_text)  # License
 
     # Set font ascender if specified
     if font_ascender is not None:
