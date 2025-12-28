@@ -1,3 +1,4 @@
 fonttools>=4.38.0
 Pillow>=9.0.0
 PyYAML>=6.0
+cu2qu>=1.6.7

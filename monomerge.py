@@ -174,8 +174,89 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
-    print(f"Loading CJK font: {cjk_font_path} (index {cjk_font_index})")
-    cjk_font = TTFont(cjk_font_path, fontNumber=cjk_font_index)
+    # Check if CJK font is a TTC (collection) or single font (TTF/OTF)
+    cjk_path_lower = str(cjk_font_path).lower()
+    is_collection = cjk_path_lower.endswith('.ttc')
+    is_otf = cjk_path_lower.endswith('.otf')
+    
+    if is_collection:
+        print(f"Loading CJK font: {cjk_font_path} (index {cjk_font_index})")
+        cjk_font = TTFont(cjk_font_path, fontNumber=cjk_font_index)
+    else:
+        print(f"Loading CJK font: {cjk_font_path}")
+        cjk_font = TTFont(cjk_font_path)
+    
+    # Convert OTF (CFF-based) to TTF (glyf-based) if needed
+    if is_otf and 'CFF ' in cjk_font:
+        print("Converting OTF (CFF) to TTF (glyf) format...")
+        # Use fontTools' cu2qu for proper CFF to TrueType conversion
+        from fontTools.pens.cu2quPen import Cu2QuPen
+        from fontTools.pens.ttGlyphPen import TTGlyphPen
+        from fontTools.pens.recordingPen import RecordingPen
+        
+        # Get CFF data
+        cff = cjk_font['CFF ']
+        cff_dict = cff.cff[0]
+        char_strings = cff_dict.CharStrings
+        
+        # Create glyf and loca tables
+        from fontTools.ttLib.tables._g_l_y_f import table__g_l_y_f
+        from fontTools.ttLib.tables._l_o_c_a import table__l_o_c_a
+        
+        glyf_table = table__g_l_y_f()
+        glyf_table.glyphs = {}
+        glyf_table.glyphOrder = cjk_font.getGlyphOrder()
+        
+        # Convert each glyph from CFF to glyf with cubic-to-quadratic conversion
+        for glyph_name in glyf_table.glyphOrder:
+            pen = TTGlyphPen(glyf_table.glyphs)
+            if glyph_name in char_strings:
+                t2_charstring = char_strings[glyph_name]
+                # Use Cu2QuPen to convert cubic beziers to quadratic
+                cu2qu_pen = Cu2QuPen(pen, 1.0, reverse_direction=False)
+                try:
+                    t2_charstring.draw(cu2qu_pen)
+                except Exception as e:
+                    # If conversion fails, create empty glyph
+                    print(f"Warning: Failed to convert glyph '{glyph_name}': {e}")
+                    pen = TTGlyphPen(glyf_table.glyphs)
+            
+            glyph = pen.glyph()
+            glyph.recalcBounds(glyf_table.glyphs)
+            glyf_table.glyphs[glyph_name] = glyph
+        
+        # Add glyf table to font
+        cjk_font['glyf'] = glyf_table
+        
+        # Create loca table
+        loca_table = table__l_o_c_a()
+        cjk_font['loca'] = loca_table
+        
+        # Remove CFF table
+        del cjk_font['CFF ']
+        
+        # Change sfntVersion from 'OTTO' (OpenType/CFF) to '\0\1\0\0' (TrueType)
+        cjk_font.sfntVersion = '\0\1\0\0'
+        
+        # Update maxp table for TrueType
+        if 'maxp' in cjk_font:
+            maxp = cjk_font['maxp']
+            maxp.tableVersion = 0x00010000
+            # Initialize TrueType-specific maxp fields
+            maxp.maxZones = 2
+            maxp.maxTwilightPoints = 0
+            maxp.maxStorage = 0
+            maxp.maxFunctionDefs = 0
+            maxp.maxInstructionDefs = 0
+            maxp.maxStackElements = 0
+            maxp.maxSizeOfInstructions = 0
+            maxp.maxComponentElements = 0
+            maxp.maxComponentDepth = 0
+            # Recalculate maxp values from glyf table
+            maxp.recalc(cjk_font)
+        
+        print("OTF to TTF conversion complete.")
+
     
     # 1. Detect char type (half-width/full-width) by MingLiU font
     print("Analyzing MingLiU metrics...")
@@ -304,7 +385,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
 
     # Save the merged font
     print(f"Saving merged font to: {output_path}")
-    merged_font.save(output_path)
+    merged_font.save(output_path, reorderTables=True)
     print("Done!")
     
     return True
@@ -337,7 +418,7 @@ Examples:
         '-c', '--cjk-font',
         type=str,
         default='input/mingliu.ttc',
-        help='Path to the CJK font file (default: input/mingliu.ttc)'
+        help='Path to the CJK font file (supports TTC, TTF, and OTF formats; default: input/mingliu.ttc)'
     )
     
     parser.add_argument(
@@ -356,7 +437,7 @@ Examples:
         '-i', '--cjk-index',
         type=int,
         default=2,
-        help='Font index in TTC file (0=MingLiU, 1=PMingLiU, 2=MingLiU_HKSCS, 3=MingLiU_MSCS, default: 2)'
+        help='Font index in TTC file (0=MingLiU, 1=PMingLiU, 2=MingLiU_HKSCS, 3=MingLiU_MSCS, default: 2). Only applies to TTC files; ignored for TTF/OTF.'
     )
 
     parser.add_argument(
