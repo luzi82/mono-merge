@@ -38,11 +38,11 @@ pip install -r requirements.txt
 ### Basic Usage
 
 ```bash
-# Merge with default fonts (Courier + MingLiU)
+# Merge with default fonts (Consola + NotoSansMonoCJKhk)
 python3 monomerge.py
 
 # Specify custom fonts
-python3 monomerge.py -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf
+python3 monomerge.py -l input/cour.ttf -c input/mingliu.ttc
 
 # Set custom output name
 python3 monomerge.py -n MyCustomFont -o output/custom.ttf
@@ -50,11 +50,11 @@ python3 monomerge.py -n MyCustomFont -o output/custom.ttf
 
 ### Command-Line Options
 
-- `-l, --latin-font PATH` - Path to the Latin/English font file (default: input/cour.ttf)
+- `-l, --latin-font PATH` - Path to the Latin/English font file (default: input/consola.ttf)
 - `-c, --cjk-font PATH` - Path to the CJK font file (supports TTC, TTF, and OTF formats)
 - `-n, --name NAME` - Output font name (for font metadata)
 - `-o, --output PATH` - Path for the output merged font
-- `-i, --cjk-index N` - Font index in TTC file (0-based, default: 2). Only applies to TTC files
+- `-i, --cjk-index N` - Font index in TTC file (0-based, default: 0). Only applies to TTC files
 - `--char CHARS` - Specific characters to include (for debugging/testing)
 
 ### Examples

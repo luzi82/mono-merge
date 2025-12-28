@@ -258,17 +258,17 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
         print("OTF to TTF conversion complete.")
 
     
-    # 1. Detect char type (half-width/full-width) by MingLiU font
-    print("Analyzing MingLiU metrics...")
+    # 1. Detect char type (half-width/full-width) by CJK font
+    print("Analyzing CJK metrics...")
     cjk_half_width, cjk_full_width = get_font_metrics(cjk_font)
-    print(f"MingLiU Half Width: {cjk_half_width}")
-    print(f"MingLiU Full Width: {cjk_full_width}")
+    print(f"CJK Half Width: {cjk_half_width}")
+    print(f"CJK Full Width: {cjk_full_width}")
     
     print("Analyzing Latin metrics...")
     latin_width = get_latin_width(latin_font)
     print(f"Latin Width: {latin_width}")
     
-    # 3. The size of cour.ttf should be scaled
+    # 3. The size of Latin font should be scaled
     scale = cjk_half_width / latin_width
     print(f"Scale Factor: {scale:.4f}")
     
@@ -285,7 +285,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     count_replaced = 0
     count_kept = 0
     
-    # Iterate over all characters in MingLiU
+    # Iterate over all characters in CJK font
     for codepoint, glyph_name in cjk_cmap.items():
         if filter_chars and chr(codepoint) not in filter_chars:
             continue
@@ -293,7 +293,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
         # Get current width
         current_width = cjk_hmtx[glyph_name][0]
         
-        # 2. For half-width char, use cour.ttf, otherwise use MingLiU
+        # 2. For half-width char, use Latin font, otherwise use CJK font
         # Check if it matches half-width (allow small tolerance)
         if abs(current_width - cjk_half_width) < 5:
             # It is half-width. Try to replace with Latin glyph.
@@ -310,12 +310,12 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
                 
                 count_replaced += 1
             else:
-                # Not in Latin font, keep MingLiU but ensure width
+                # Not in Latin font, keep CJK glyph but ensure width
                 cjk_hmtx[glyph_name] = (cjk_half_width, cjk_hmtx[glyph_name][1])
                 count_kept += 1
         
         elif abs(current_width - cjk_full_width) < 5:
-            # Full width, keep MingLiU, ensure width
+            # Full width, keep CJK glyph, ensure width
             cjk_hmtx[glyph_name] = (cjk_full_width, cjk_hmtx[glyph_name][1])
             count_kept += 1
         else:
@@ -401,24 +401,24 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -l input/cour.ttf -c input/mingliu.ttc
-  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -n MyCustomFont
-  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -o output/custom.ttf -i 1
+  %(prog)s -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf
+  %(prog)s -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf -n MyCustomFont
+  %(prog)s -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf -o output/custom.ttf -i 1
         """
     )
     
     parser.add_argument(
         '-l', '--latin-font',
         type=str,
-        default='input/cour.ttf',
-        help='Path to the Latin/English font file (default: input/cour.ttf)'
+        default='input/consola.ttf',
+        help='Path to the Latin/English font file (default: input/consola.ttf)'
     )
     
     parser.add_argument(
         '-c', '--cjk-font',
         type=str,
-        default='input/mingliu.ttc',
-        help='Path to the CJK font file (supports TTC, TTF, and OTF formats; default: input/mingliu.ttc)'
+        default='input/NotoSansMonoCJKhk-Regular.otf',
+        help='Path to the CJK font file (supports TTC, TTF, and OTF formats; default: input/NotoSansMonoCJKhk-Regular.otf)'
     )
     
     parser.add_argument(
@@ -436,8 +436,8 @@ Examples:
     parser.add_argument(
         '-i', '--cjk-index',
         type=int,
-        default=2,
-        help='Font index in TTC file (0=MingLiU, 1=PMingLiU, 2=MingLiU_HKSCS, 3=MingLiU_MSCS, default: 2). Only applies to TTC files; ignored for TTF/OTF.'
+        default=0,
+        help='Font index in TTC file (default: 0). Only applies to TTC files; ignored for TTF/OTF.'
     )
 
     parser.add_argument(
