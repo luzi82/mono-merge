@@ -133,14 +133,23 @@ def render_text_preview(font_path, text, output_prefix, font_size=48, font_index
             ascent_y = y
             descent_y = y + ascent + descent
             
+            # Create a small font for labels
+            try:
+                label_font = ImageFont.truetype(str(font_path), 12, index=font_index)
+            except:
+                label_font = ImageFont.load_default()
+            
             # Draw Baseline (Blue)
             draw.line([(0, baseline_y), (img_width, baseline_y)], fill=(0, 0, 255), width=1)
+            draw.text((5, baseline_y + 2), "Baseline", fill=(0, 0, 255), font=label_font)
             
             # Draw Ascender (Green)
             draw.line([(0, ascent_y), (img_width, ascent_y)], fill=(0, 255, 0), width=1)
+            draw.text((5, ascent_y + 2), "Ascender", fill=(0, 255, 0), font=label_font)
             
             # Draw Descender (Red)
             draw.line([(0, descent_y), (img_width, descent_y)], fill=(255, 0, 0), width=1)
+            draw.text((5, descent_y + 2), "Descender", fill=(255, 0, 0), font=label_font)
             
             # Draw per-character vertical lines and boxes
             curr_x = x
