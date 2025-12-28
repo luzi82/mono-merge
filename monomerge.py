@@ -633,6 +633,15 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     }
     merged_font['gasp'] = gasp
 
+    # Mark font as monospace/fixed-pitch (required for terminal emulators like PuTTY)
+    print("Marking font as monospace/fixed-pitch...")
+    if 'post' in merged_font:
+        merged_font['post'].isFixedPitch = 1
+    
+    if 'OS/2' in merged_font:
+        # Set PANOSE bProportion to 9 (monospace)
+        merged_font['OS/2'].panose.bProportion = 9
+
     # Save the merged font
     print(f"Saving merged font to: {output_path}")
     merged_font.save(output_path, reorderTables=True)

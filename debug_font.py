@@ -13,14 +13,31 @@ def inspect_font(path, index=0, chars="測試文字", scale=1.0):
         print(f"Error loading font: {e}")
         return
 
-    # 0. Head Info (UPM)
+    # 0. Monospace/Fixed-Pitch Properties
+    print(f"\n[Monospace/Fixed-Pitch Properties]")
+    if 'post' in font:
+        print(f"  post.isFixedPitch: {font['post'].isFixedPitch}")
+    else:
+        print("  No 'post' table found")
+    
+    if 'OS/2' in font:
+        os2 = font['OS/2']
+        print(f"  OS/2.panose.bProportion: {os2.panose.bProportion} (9 = monospace)")
+        print(f"  OS/2.panose.bFamilyType: {os2.panose.bFamilyType}")
+        print(f"  OS/2.xAvgCharWidth: {os2.xAvgCharWidth}")
+        print(f"  OS/2.sFamilyClass: {os2.sFamilyClass}")
+    else:
+        print("  No 'OS/2' table found")
+
+    # 1. Head Info (UPM)
     if 'head' in font:
         print(f"\n[Head Table]")
         print(f"  UnitsPerEm: {font['head'].unitsPerEm}")
         print(f"  xMin: {font['head'].xMin}, yMin: {font['head'].yMin}")
         print(f"  xMax: {font['head'].xMax}, yMax: {font['head'].yMax}")
+        print(f"  macStyle: {font['head'].macStyle}")
 
-    # 1. Basic Info & Glyph Order
+    # 2. Basic Info & Glyph Order
     glyph_order = font.getGlyphOrder()
     print(f"\n[Glyph Order]")
     print(f"  Total glyphs: {len(glyph_order)}")
@@ -29,7 +46,7 @@ def inspect_font(path, index=0, chars="測試文字", scale=1.0):
     generic_count = sum(1 for name in glyph_order if name.startswith('glyph'))
     print(f"  Glyphs starting with 'glyph': {generic_count}")
 
-    # 2. Cmap Tables
+    # 3. Cmap Tables
     print(f"\n[Cmap Tables]")
     if 'cmap' in font:
         for table in font['cmap'].tables:
@@ -37,7 +54,7 @@ def inspect_font(path, index=0, chars="測試文字", scale=1.0):
     else:
         print("  No cmap table found")
 
-    # 3. Character Mapping & Glyph Existence
+    # 4. Character Mapping & Glyph Existence
     print(f"\n[Character Mapping & Glyph Existence]")
     cmap = font.getBestCmap()
     if cmap:
