@@ -203,7 +203,7 @@ def apply_y_offset_to_glyphs(font, y_offset, exclude_glyphs=None):
                     coord_list[i] = (x, y + y_offset)
 
 
-def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0, font_ascender=None):
+def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0, font_ascender=None, font_descender=None):
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
@@ -460,6 +460,17 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             merged_font['OS/2'].sTypoAscender = font_ascender
             merged_font['OS/2'].usWinAscent = font_ascender
 
+    # Set font descender if specified
+    if font_descender is not None:
+        print(f"Setting font descender to: {font_descender}")
+        # Update hhea table
+        if 'hhea' in merged_font:
+            merged_font['hhea'].descent = font_descender
+        # Update OS/2 table
+        if 'OS/2' in merged_font:
+            merged_font['OS/2'].sTypoDescender = font_descender
+            merged_font['OS/2'].usWinDescent = abs(font_descender)
+
     # Ensure glyphOrder matches glyf table to prevent AssertionError
     if 'glyf' in merged_font:
         glyf_table = merged_font['glyf']
@@ -574,6 +585,12 @@ Examples:
         type=int,
         help='Hard code the font ascender value in font units (sets both hhea and OS/2 tables)'
     )
+
+    parser.add_argument(
+        '--font-descender',
+        type=int,
+        help='Hard code the font descender value in font units (sets both hhea and OS/2 tables)'
+    )
     
     args = parser.parse_args()
     
@@ -616,7 +633,8 @@ Examples:
         filter_chars=args.char,
         latin_y_offset=args.latin_y_offset,
         cjk_y_offset=args.cjk_y_offset,
-        font_ascender=args.font_ascender
+        font_ascender=args.font_ascender,
+        font_descender=args.font_descender
     )
     
     return 0 if success else 1
