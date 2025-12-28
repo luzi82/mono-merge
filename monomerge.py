@@ -7,6 +7,7 @@ Merges English/Latin fonts with CJK fonts to create a unified monospace font
 import argparse
 import sys
 from pathlib import Path
+from datetime import datetime
 from fontTools.ttLib import TTFont
 from fontTools.pens.t2CharStringPen import T2CharStringPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -86,7 +87,7 @@ def standardize_font_widths(font, target_half_width, target_full_width, is_cjk_f
             set_glyph_width(font, glyph_name, target_half_width)
 
 
-def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0):
+def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None):
     """
     Merge Latin and CJK fonts into a single monospace font
     
@@ -95,6 +96,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0):
         cjk_font_path: Path to the CJK font (e.g., mingliu.ttc)
         output_path: Path for the output merged font
         cjk_font_index: Index of font in TTC file (0 for MingLiU, 1 for MingLiU_HKSCS, etc.)
+        font_name: Name for the merged font (default: None, keeps original name)
     """
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
@@ -128,7 +130,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0):
     merged_font = latin_font
     
     # Get character maps
-    latin_cmap = latin_font.getBestCmap()
+    latin_cmap = latin_font.getBestCmap().copy()
     cjk_cmap = cjk_font.getBestCmap()
     
     if not latin_cmap or not cjk_cmap:
@@ -144,40 +146,177 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0):
     hmtx_table = merged_font['hmtx']
     cjk_hmtx_table = cjk_font['hmtx']
     
-    glyphs_added = 0
+    # Identify all glyphs to copy (including components)
+    glyphs_to_copy = set()
+    
+    # First, find all CJK glyphs from cmap
     for codepoint, cjk_glyph_name in cjk_cmap.items():
         if is_cjk_char(codepoint):
-            # This is a CJK character, use the glyph from CJK font
-            # Convert glyph name to string if it's not already
             if isinstance(cjk_glyph_name, int):
                 cjk_glyph_name = f"glyph{cjk_glyph_name:05d}"
-            
-            try:
-                # Check if glyph exists in CJK font
-                if glyf_table and cjk_glyf_table and cjk_glyph_name in cjk_glyf_table:
-                    # Copy the glyph
-                    glyf_table[cjk_glyph_name] = cjk_glyf_table[cjk_glyph_name]
-                    
-                    # Copy the metrics
-                    try:
-                        hmtx_table[cjk_glyph_name] = cjk_hmtx_table[cjk_glyph_name]
-                    except KeyError:
-                        # Glyph doesn't have metrics, skip it
-                        continue
-                    
-                    # Update the cmap to point to this glyph
-                    latin_cmap[codepoint] = cjk_glyph_name
-                    glyphs_added += 1
-            except (KeyError, Exception) as e:
-                # Skip glyphs that can't be copied
-                continue
+            glyphs_to_copy.add(cjk_glyph_name)
+            # Update cmap immediately
+            latin_cmap[codepoint] = cjk_glyph_name
+
+    # Recursively find components
+    # We need to check if any glyph in glyphs_to_copy is composite
+    # and if so, add its components to the set
     
-    print(f"Added {glyphs_added} CJK glyphs")
+    print(f"Initial CJK glyphs to copy: {len(glyphs_to_copy)}")
+    
+    processed_glyphs = set()
+    while True:
+        new_glyphs = set()
+        for glyph_name in glyphs_to_copy:
+            if glyph_name in processed_glyphs:
+                continue
+            
+            processed_glyphs.add(glyph_name)
+            
+            # Check if glyph exists in CJK font
+            if glyph_name in cjk_glyf_table:
+                glyph = cjk_glyf_table[glyph_name]
+                if glyph.isComposite():
+                    for component in glyph.components:
+                        comp_name = component.glyphName
+                        if comp_name not in glyphs_to_copy and comp_name not in new_glyphs:
+                            new_glyphs.add(comp_name)
+        
+        if not new_glyphs:
+            break
+            
+        print(f"Found {len(new_glyphs)} component glyphs to add...")
+        glyphs_to_copy.update(new_glyphs)
+
+    print(f"Total glyphs to copy (including components): {len(glyphs_to_copy)}")
+
+    # Now copy all identified glyphs
+    glyphs_added = 0
+    for cjk_glyph_name in glyphs_to_copy:
+        try:
+            # Check if glyph exists in CJK font
+            if glyf_table and cjk_glyf_table and cjk_glyph_name in cjk_glyf_table:
+                # Copy the glyph
+                glyf_table[cjk_glyph_name] = cjk_glyf_table[cjk_glyph_name]
+                
+                # Copy the metrics
+                try:
+                    hmtx_table[cjk_glyph_name] = cjk_hmtx_table[cjk_glyph_name]
+                except KeyError:
+                    # Glyph might not have metrics if it's just a component? 
+                    # Usually all glyphs have hmtx. Use default if missing.
+                    hmtx_table[cjk_glyph_name] = (target_full_width, 0)
+                
+                glyphs_added += 1
+        except (KeyError, Exception) as e:
+            # Skip glyphs that can't be copied
+            print(f"Warning: Failed to copy glyph {cjk_glyph_name}: {e}")
+            continue
+    
+    print(f"Successfully added {glyphs_added} glyphs")
+    
+    # Explicitly update glyphOrder to ensure cmap compiles correctly
+    if glyphs_added > 0:
+        print("Updating glyphOrder...")
+        current_order = merged_font.getGlyphOrder()
+        existing_set = set(current_order)
+        # Find glyphs that are in glyphs_to_copy but not in current_order
+        new_glyphs_list = [g for g in glyphs_to_copy if g not in existing_set]
+        # Sort for determinism
+        new_glyphs_list.sort()
+        
+        if new_glyphs_list:
+            new_order = current_order + new_glyphs_list
+            merged_font.setGlyphOrder(new_order)
+            print(f"Added {len(new_glyphs_list)} glyphs to glyphOrder")
+
+    # Remove DSIG table if present to avoid signature validation errors
+    if 'DSIG' in merged_font:
+        print("Removing DSIG table...")
+        del merged_font['DSIG']
+    
+    # Update OS/2 table to include CJK Unicode ranges
+    if 'OS/2' in merged_font:
+        print("Updating OS/2 table for CJK support...")
+        os2_table = merged_font['OS/2']
+        
+        # Update Unicode range bits (ulUnicodeRange1-4)
+        # Bit 59: CJK Unified Ideographs (4E00-9FFF)
+        # Bit 60: Private Use Area (E000-F8FF)
+        # Bit 61: CJK Compatibility Ideographs (F900-FAFF)
+        
+        # ulUnicodeRange2 bits (32-63)
+        # Set bit 59 (CJK Unified Ideographs) - bit 27 of ulUnicodeRange2
+        os2_table.ulUnicodeRange2 |= (1 << 27)  # Bit 59: CJK Unified Ideographs
+        os2_table.ulUnicodeRange2 |= (1 << 29)  # Bit 61: CJK Compatibility Ideographs
+        
+        # ulUnicodeRange3 bits (64-95)
+        # Set bit 64 (Hiragana), bit 65 (Katakana)
+        os2_table.ulUnicodeRange3 |= (1 << 0)   # Bit 64: Hiragana
+        os2_table.ulUnicodeRange3 |= (1 << 1)   # Bit 65: Katakana
+        os2_table.ulUnicodeRange3 |= (1 << 4)   # Bit 68: Hangul Syllables
+        
+        # Update codepage range for Chinese support
+        # Bit 17: Chinese: Simplified chars (PRC and Singapore)
+        # Bit 18: Chinese: Traditional chars (Taiwan and Hong Kong)
+        os2_table.ulCodePageRange1 |= (1 << 17)  # Simplified Chinese
+        os2_table.ulCodePageRange1 |= (1 << 18)  # Traditional Chinese
     
     # Update the cmap table
-    for table in merged_font['cmap'].tables:
-        if table.isUnicode():
-            table.cmap = latin_cmap
+    # Create new cmap tables to ensure they are clean and contain all mappings
+    from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
+    
+    # Windows Unicode BMP (Platform 3, Encoding 1, Format 4)
+    cmap_win = CmapSubtable.newSubtable(4)
+    cmap_win.platformID = 3
+    cmap_win.platEncID = 1
+    cmap_win.language = 0
+    cmap_win.cmap = latin_cmap
+    
+    # Unicode BMP (Platform 0, Encoding 3, Format 4)
+    cmap_uni = CmapSubtable.newSubtable(4)
+    cmap_uni.platformID = 0
+    cmap_uni.platEncID = 3
+    cmap_uni.language = 0
+    cmap_uni.cmap = latin_cmap
+    
+    merged_font['cmap'].tables = [cmap_win, cmap_uni]
+    
+    # Update font name if provided
+    if font_name:
+        print(f"Setting font name to: {font_name}")
+        name_table = merged_font['name']
+
+        # Prepare consistent naming components
+        family_name = font_name
+        subfamily_name = 'Regular'
+        full_name = f"{font_name} {subfamily_name}".strip()
+        unique_name = f"{font_name} {datetime.now().strftime('%Y%m%d')}"
+        ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
+
+        # Helper for writing all platform/encoding combos Windows and macOS expect
+        def set_name_all_platforms(name_id, value):
+            if value is None:
+                return
+            name_table.setName(value, name_id, 3, 1, 0x409)  # Windows, Unicode BMP, en-US
+            name_table.setName(value, name_id, 1, 0, 0)      # macOS, Roman, English
+            name_table.setName(value, name_id, 0, 3, 0)      # Unicode, BMP
+
+        # Remove any stale name records likely to confuse Windows viewers
+        # Also remove WWS names (21, 22) if present
+        name_ids_to_clean = {1, 2, 3, 4, 6, 16, 17, 21, 22}
+        name_table.names = [
+            record for record in name_table.names if record.nameID not in name_ids_to_clean
+        ]
+
+        # Populate the critical name records
+        set_name_all_platforms(1, family_name)      # Font Family name
+        set_name_all_platforms(2, subfamily_name)   # Font Subfamily (Regular)
+        set_name_all_platforms(3, unique_name)      # Unique identifier
+        set_name_all_platforms(4, full_name)        # Full font name
+        set_name_all_platforms(6, ps_name)          # PostScript name (no spaces)
+        set_name_all_platforms(16, family_name)     # Typographic family name
+        set_name_all_platforms(17, subfamily_name)  # Typographic subfamily name
     
     # Save the merged font
     print(f"Saving merged font to: {output_path}")
@@ -188,13 +327,18 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0):
 
 
 def main():
+    # Generate default font name with timestamp
+    today = datetime.now().strftime('%Y%m%d%H%M%S')
+    default_output = f'output/mono_{today}.ttf'
+    
     parser = argparse.ArgumentParser(
         description='Merge monospace fonts for English and CJK characters',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -o output/merged.ttf
-  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -o output/merged.ttf -i 1
+  %(prog)s -l input/cour.ttf -c input/mingliu.ttc
+  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -n MyCustomFont
+  %(prog)s -l input/cour.ttf -c input/mingliu.ttc -o output/custom.ttf -i 1
         """
     )
     
@@ -213,20 +357,39 @@ Examples:
     )
     
     parser.add_argument(
+        '-n', '--name',
+        type=str,
+        help='Output font name (default: mono_YYYYMMDDHHMMSS). Used to generate output filename.'
+    )
+    
+    parser.add_argument(
         '-o', '--output',
         type=str,
-        default='output/merged.ttf',
-        help='Path for the output merged font (default: output/merged.ttf)'
+        help=f'Path for the output merged font (default: {default_output})'
     )
     
     parser.add_argument(
         '-i', '--cjk-index',
         type=int,
-        default=1,
-        help='Font index in TTC file (0=MingLiU, 1=MingLiU_HKSCS, default: 1)'
+        default=2,
+        help='Font index in TTC file (0=MingLiU, 1=PMingLiU, 2=MingLiU_HKSCS, 3=MingLiU_MSCS, default: 2)'
     )
     
     args = parser.parse_args()
+    
+    # Determine output path
+    if args.output:
+        output_path = Path(args.output)
+    elif args.name:
+        output_path = Path(f'output/{args.name}.ttf')
+    else:
+        output_path = Path(default_output)
+    
+    # Determine font name (for internal font metadata)
+    if args.name:
+        font_name = args.name
+    else:
+        font_name = f"mono {today}"
     
     # Validate input files
     latin_path = Path(args.latin_font)
@@ -241,7 +404,6 @@ Examples:
         return 1
     
     # Create output directory if it doesn't exist
-    output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Merge fonts
@@ -249,7 +411,8 @@ Examples:
         str(latin_path),
         str(cjk_path),
         str(output_path),
-        args.cjk_index
+        args.cjk_index,
+        font_name
     )
     
     return 0 if success else 1
