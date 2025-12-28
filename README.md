@@ -77,3 +77,8 @@ python3 monomerge.py --char "你好World123"
 ## License
 
 WTFPL (Do What The F*** You Want To Public License)
+
+## CodeCJK?
+
+[CodeCJK.md](CodeCJK.md)
+
