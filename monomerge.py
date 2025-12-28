@@ -12,6 +12,7 @@ from collections import Counter
 from fontTools.ttLib import TTFont
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.transformPen import TransformPen
+from fontTools.ttLib.tables._g_a_s_p import table__g_a_s_p, GASP_SYMMETRIC_GRIDFIT, GASP_SYMMETRIC_SMOOTHING, GASP_DOGRAY, GASP_GRIDFIT
 
 
 def get_font_metrics(font):
@@ -481,6 +482,15 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             final_order.extend(sorted(missing_glyphs))
             
         merged_font.setGlyphOrder(final_order)
+
+    # Add gasp table for better Windows rendering
+    print("Adding gasp table for improved Windows rendering...")
+    gasp = table__g_a_s_p()
+    gasp.version = 1
+    gasp.gaspRange = {
+        0xFFFF: GASP_SYMMETRIC_GRIDFIT | GASP_SYMMETRIC_SMOOTHING | GASP_DOGRAY | GASP_GRIDFIT
+    }
+    merged_font['gasp'] = gasp
 
     # Save the merged font
     print(f"Saving merged font to: {output_path}")
