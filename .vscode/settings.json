@@ -1,0 +1,12 @@
+{
+  "terminal.integrated.defaultProfile.linux": "env_bash",
+  "terminal.integrated.profiles.linux": {
+    "env_bash": {
+      "path": "bash",
+      "args": [
+        "--init-file",
+        "${workspaceFolder}/.env.sh"
+      ]
+    }
+  }
+}
