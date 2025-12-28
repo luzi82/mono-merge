@@ -23,6 +23,11 @@ This ensures consistent monospace rendering across different character sets, whi
 ### Key Libraries
 - **fonttools**: The primary library used for font manipulation and merging operations
 
+## Coding Standards
+
+### Python Scripts
+- For Python executable main scripts, must use `argparse` instead of `sys.argv` for command-line argument parsing
+
 ## Use Cases
 
 - Creating custom monospace fonts for multilingual development
