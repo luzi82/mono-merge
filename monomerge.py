@@ -302,6 +302,12 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             
         merged_font.setGlyphOrder(final_order)
 
+    # Save the merged font
+    print(f"Saving merged font to: {output_path}")
+    merged_font.save(output_path)
+    print("Done!")
+    
+    return True
 
 
 def main():
