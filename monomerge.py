@@ -739,6 +739,10 @@ Examples:
     else:
         output_path = Path(default_output)
     
+    # Replace DATETIME in output path with current timestamp
+    if "DATETIME" in str(output_path):
+        output_path = Path(str(output_path).replace("DATETIME", today))
+    
     # Determine font name (for internal font metadata)
     if args.name:
         font_name = args.name
