@@ -172,6 +172,117 @@ def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name
     return cjk_glyph_name
 
 
+def get_glyph_bounds_extremes(font):
+    """
+    Get the extreme Y values (highest and lowest) across ASCII glyphs only.
+    Uses ASCII characters for consistent line height calculation.
+    Returns (yMin, yMax) tuple.
+    """
+    glyf_table = font['glyf']
+    cmap = font.getBestCmap()
+    
+    if not cmap:
+        return 0, 0
+    
+    y_min = float('inf')
+    y_max = float('-inf')
+    
+    # Use only ASCII characters for line height calculation
+    # ASCII: 0x0000-0x007F
+    def is_relevant_char(codepoint):
+        return 0x0000 <= codepoint <= 0x007F  # ASCII only
+    
+    processed_count = 0
+    extreme_glyphs = []  # Track glyphs with extreme bounds for debugging
+    
+    # Iterate through mapped glyphs, filtering for ASCII and CJK
+    for codepoint, glyph_name in cmap.items():
+        # Skip characters outside our target ranges
+        if not is_relevant_char(codepoint):
+            continue
+        
+        if glyph_name not in glyf_table:
+            continue
+        
+        # Skip specific glyphs with extreme bounds (combining marks)
+        if glyph_name in ('uni309A', 'uni3099', 'cid01547', 'cid01546'):
+            continue
+        
+        glyph = glyf_table[glyph_name]
+        
+        # Skip empty glyphs
+        if glyph.numberOfContours == 0:
+            continue
+        
+        # Recalculate bounds from actual coordinates to ensure accuracy after modifications
+        glyph.recalcBounds(glyf_table)
+        
+        # Get bounds from the glyph
+        if hasattr(glyph, 'xMin'):
+            # Track extreme values for debugging
+            if glyph.yMin < -200 or glyph.yMax > 800:
+                extreme_glyphs.append((chr(codepoint), f"U+{codepoint:04X}", glyph_name, glyph.yMin, glyph.yMax))
+            
+            if glyph.yMin < y_min:
+                y_min = glyph.yMin
+            if glyph.yMax > y_max:
+                y_max = glyph.yMax
+            processed_count += 1
+    
+    # Handle case where no glyphs were found
+    if y_min == float('inf') or y_max == float('-inf'):
+        return 0, 0
+    
+    print(f"  Analyzed {processed_count} ASCII glyphs for bounds")
+    print(f"  Y range: {int(y_min)} to {int(y_max)} (height: {int(y_max - y_min)})")
+    
+    # Show extreme glyphs if any
+    if extreme_glyphs:
+        print(f"  Found {len(extreme_glyphs)} glyphs with extreme bounds (yMin < -200 or yMax > 800):")
+        for char, code, name, ymin, ymax in sorted(extreme_glyphs, key=lambda x: x[3])[:10]:
+            print(f"    {char:8s} {code:8s} {name:30s} yMin={int(ymin):5d} yMax={int(ymax):5d}")
+    
+    return int(y_min), int(y_max)
+
+
+def calculate_line_height_metrics(font, multiplier=1.3):
+    """
+    Calculate ascender and descender values based on actual glyph bounds.
+    Uses multiplier (default 1.3) to add spacing above/below glyphs.
+    Returns (ascender, descender) tuple.
+    """
+    y_min, y_max = get_glyph_bounds_extremes(font)
+    
+    if y_min == 0 and y_max == 0:
+        # Fallback to existing values
+        if 'hhea' in font:
+            return font['hhea'].ascent, font['hhea'].descent
+        return 800, -200
+    
+    # Calculate actual glyph height
+    glyph_height = y_max - y_min
+    
+    # Calculate target line height with multiplier
+    line_height = int(round(glyph_height * multiplier))
+    
+    # Calculate extra space needed
+    extra_space = line_height - glyph_height
+    
+    # Distribute extra space: more above (for ascenders) than below (for descenders)
+    # Use 60/40 ratio: 60% above, 40% below
+    extra_above = int(round(extra_space * 0.6))
+    extra_below = extra_space - extra_above
+    
+    # Calculate final ascender/descender
+    ascender = y_max + extra_above
+    descender = y_min - extra_below
+    
+    print(f"  Line height calculation: {glyph_height} * {multiplier} = {line_height}")
+    print(f"  Extra space: {extra_space} (above: {extra_above}, below: {extra_below})")
+    
+    return ascender, descender
+
+
 def apply_y_offset_to_glyphs(font, y_offset, exclude_glyphs=None):
     """
     Apply a vertical offset to all glyphs in the font.
@@ -203,7 +314,7 @@ def apply_y_offset_to_glyphs(font, y_offset, exclude_glyphs=None):
                     coord_list[i] = (x, y + y_offset)
 
 
-def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0, font_ascender=None, font_descender=None):
+def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0, font_ascender=None, font_descender=None, line_height_multiplier=1.3, version_date=None):
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
@@ -414,6 +525,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     unique_name = f"{font_name}-MonoMerge"
     ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
     metadata_text = 'created by MonoMerge'
+    version_string = version_date if version_date else datetime.now().strftime('%Y%m%d%H%M%S')
 
     def set_name_all_platforms(name_id, value):
         if value is None: return
@@ -430,7 +542,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     # 2: Font Subfamily name
     # 3: Unique font identifier
     # 4: Full font name
-    # 5: Version string - fill with metadata text
+    # 5: Version string - date in yyyymmddhhmmss format
     # 6: PostScript name
     # 8: Manufacturer - fill with metadata text
     # 9: Designer - fill with metadata text
@@ -442,14 +554,32 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
     set_name_all_platforms(2, subfamily_name)  # Subfamily
     set_name_all_platforms(3, unique_name)  # Unique ID
     set_name_all_platforms(4, full_name)  # Full name
-    set_name_all_platforms(5, metadata_text)  # Version
+    set_name_all_platforms(5, version_string)  # Version
     set_name_all_platforms(6, ps_name)  # PostScript name
     set_name_all_platforms(8, metadata_text)  # Manufacturer
     set_name_all_platforms(9, metadata_text)  # Designer
     set_name_all_platforms(11, metadata_text)  # Vendor URL
     set_name_all_platforms(13, metadata_text)  # License
 
-    # Set font ascender if specified
+    # Auto-calculate or set font ascender/descender
+    if font_ascender is None or font_descender is None:
+        print("Auto-calculating font ascender/descender from glyph bounds...")
+        
+        # First, get the actual bounds to show what we're working with
+        actual_y_min, actual_y_max = get_glyph_bounds_extremes(merged_font)
+        print(f"Actual glyph bounds in merged font: yMin={actual_y_min}, yMax={actual_y_max}")
+        
+        auto_ascender, auto_descender = calculate_line_height_metrics(merged_font, multiplier=line_height_multiplier)
+        
+        if font_ascender is None:
+            font_ascender = auto_ascender
+            print(f"Auto-calculated font ascender: {font_ascender}")
+        
+        if font_descender is None:
+            font_descender = auto_descender
+            print(f"Auto-calculated font descender: {font_descender}")
+    
+    # Set font ascender
     if font_ascender is not None:
         print(f"Setting font ascender to: {font_ascender}")
         # Update hhea table
@@ -460,7 +590,7 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
             merged_font['OS/2'].sTypoAscender = font_ascender
             merged_font['OS/2'].usWinAscent = font_ascender
 
-    # Set font descender if specified
+    # Set font descender
     if font_descender is not None:
         print(f"Setting font descender to: {font_descender}")
         # Update hhea table
@@ -591,6 +721,13 @@ Examples:
         type=int,
         help='Hard code the font descender value in font units (sets both hhea and OS/2 tables)'
     )
+
+    parser.add_argument(
+        '--line-height-multiplier',
+        type=float,
+        default=1.3,
+        help='Line height multiplier for auto-calculated ascender/descender (default: 1.3)'
+    )
     
     args = parser.parse_args()
     
@@ -634,7 +771,9 @@ Examples:
         latin_y_offset=args.latin_y_offset,
         cjk_y_offset=args.cjk_y_offset,
         font_ascender=args.font_ascender,
-        font_descender=args.font_descender
+        font_descender=args.font_descender,
+        line_height_multiplier=args.line_height_multiplier,
+        version_date=today
     )
     
     return 0 if success else 1
