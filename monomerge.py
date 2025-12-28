@@ -8,377 +8,300 @@ import argparse
 import sys
 from pathlib import Path
 from datetime import datetime
+from collections import Counter
 from fontTools.ttLib import TTFont
-from fontTools.pens.t2CharStringPen import T2CharStringPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.transformPen import TransformPen
 
 
-def get_glyph_width(font, glyph_name):
-    """Get the advance width of a glyph"""
-    if 'hmtx' in font:
-        return font['hmtx'][glyph_name][0]
-    return 0
-
-
-def set_glyph_width(font, glyph_name, width):
-    """Set the advance width of a glyph"""
-    if 'hmtx' in font:
-        advance_width, lsb = font['hmtx'][glyph_name]
-        font['hmtx'][glyph_name] = (width, lsb)
-
-
-def is_cjk_char(codepoint):
-    """Check if a Unicode codepoint is a CJK character or full-width character"""
-    # CJK Unified Ideographs
-    if 0x4E00 <= codepoint <= 0x9FFF:
-        return True
-    # CJK Unified Ideographs Extension A
-    if 0x3400 <= codepoint <= 0x4DBF:
-        return True
-    # CJK Unified Ideographs Extension B-F
-    if 0x20000 <= codepoint <= 0x2EBEF:
-        return True
-    # CJK Compatibility Ideographs
-    if 0xF900 <= codepoint <= 0xFAFF:
-        return True
-    if 0x2F800 <= codepoint <= 0x2FA1F:
-        return True
-    # Hangul Syllables (Korean)
-    if 0xAC00 <= codepoint <= 0xD7AF:
-        return True
-    # Hiragana and Katakana
-    if 0x3040 <= codepoint <= 0x30FF:
-        return True
-    # Katakana Phonetic Extensions
-    if 0x31F0 <= codepoint <= 0x31FF:
-        return True
-    # CJK Symbols and Punctuation (full-width)
-    if 0x3000 <= codepoint <= 0x303F:
-        return True
-    # Full-width ASCII variants
-    if 0xFF00 <= codepoint <= 0xFFEF:
-        return True
-    # Enclosed CJK Letters and Months
-    if 0x3200 <= codepoint <= 0x32FF:
-        return True
-    # CJK Compatibility
-    if 0x3300 <= codepoint <= 0x33FF:
-        return True
-    return False
-
-
-def standardize_font_widths(font, target_half_width, target_full_width, is_cjk_font=False):
+def get_font_metrics(font):
     """
-    Standardize glyph widths in a font
-    target_half_width: target width for half-width characters
-    target_full_width: target width for full-width characters
-    is_cjk_font: if True, most glyphs should be full-width
+    Determine the dominant half-width and full-width of the font.
+    Returns (half_width, full_width)
     """
+    hmtx = font['hmtx']
     cmap = font.getBestCmap()
-    if not cmap:
-        return
     
-    for codepoint, glyph_name in cmap.items():
-        if is_cjk_char(codepoint):
-            # CJK and full-width characters
-            set_glyph_width(font, glyph_name, target_full_width)
+    # Try to find standard chars
+    half_width = None
+    full_width = None
+    
+    # Space (0x20) or 'A' (0x41) for half-width
+    for cp in [0x20, 0x41]:
+        if cp in cmap:
+            half_width = hmtx[cmap[cp]][0]
+            break
+            
+    # 'One' (0x4E00) or Ideographic Space (0x3000) for full-width
+    for cp in [0x4E00, 0x3000]:
+        if cp in cmap:
+            full_width = hmtx[cmap[cp]][0]
+            break
+            
+    # Fallback to statistics if needed
+    if half_width is None or full_width is None:
+        widths = [hmtx[name][0] for name in cmap.values()]
+        if not widths:
+            return 0, 0
+        common = Counter(widths).most_common(2)
+        sorted_widths = sorted([c[0] for c in common])
+        
+        if len(sorted_widths) == 1:
+            # Only one width found?
+            w = sorted_widths[0]
+            # Guess based on UPM?
+            upm = font['head'].unitsPerEm
+            if abs(w - upm) < abs(w - upm/2):
+                full_width = w
+                half_width = w // 2
+            else:
+                half_width = w
+                full_width = w * 2
         else:
-            # Half-width characters (ASCII, etc.)
-            set_glyph_width(font, glyph_name, target_half_width)
+            if half_width is None: half_width = sorted_widths[0]
+            if full_width is None: full_width = sorted_widths[-1]
+            
+    return half_width, full_width
+
+
+def get_latin_width(font):
+    """Get the dominant width of the Latin font"""
+    hmtx = font['hmtx']
+    cmap = font.getBestCmap()
+    
+    # Try 'A'
+    if 0x41 in cmap:
+        return hmtx[cmap[0x41]][0]
+        
+    # Statistics
+    widths = [hmtx[name][0] for name in cmap.values()]
+    if not widths:
+        return 1000 # Default
+    return Counter(widths).most_common(1)[0][0]
+
+
+def copy_glyph_from_latin(latin_font, cjk_font, latin_glyph_name, cjk_glyph_name, scale, glyphs_added_map, new_glyphs_list):
+    """
+    Copy glyph from latin_font to cjk_font, scaling it.
+    glyphs_added_map: maps latin_glyph_name -> new_cjk_glyph_name (for components)
+    new_glyphs_list: list to append new component glyph names to (for glyphOrder)
+    """
+    if isinstance(latin_glyph_name, int):
+        latin_glyph_name = latin_font.getGlyphName(latin_glyph_name)
+
+
+
+
+
+
+
+
+    if latin_glyph_name in glyphs_added_map:
+        return glyphs_added_map[latin_glyph_name]
+
+    latin_glyf = latin_font['glyf']
+    cjk_glyf = cjk_font['glyf']
+    
+    if latin_glyph_name not in latin_glyf:
+        return None
+
+    src_glyph = latin_glyf[latin_glyph_name]
+    
+    # If cjk_glyph_name is None, we are copying a component, so generate a new name
+    is_component = cjk_glyph_name is None
+    if is_component:
+        cjk_glyph_name = f"cour_{latin_glyph_name}"
+        # Ensure uniqueness
+        while cjk_glyph_name in cjk_glyf or cjk_glyph_name in new_glyphs_list:
+             cjk_glyph_name += "_"
+        new_glyphs_list.append(cjk_glyph_name)
+    
+    # Record mapping before recursion to handle cycles
+    glyphs_added_map[latin_glyph_name] = cjk_glyph_name
+    
+    if src_glyph.isComposite():
+        pen = TTGlyphPen(cjk_glyf)
+        for comp in src_glyph.components:
+            # Recursively copy component
+            new_comp_name = copy_glyph_from_latin(latin_font, cjk_font, comp.glyphName, None, scale, glyphs_added_map, new_glyphs_list)
+
+
+
+
+            
+            if new_comp_name:
+                # Scale transform
+                xx, xy, yx, yy = 1, 0, 0, 1
+                if hasattr(comp, 'transform'):
+                    xx, xy = comp.transform[0]
+                    yx, yy = comp.transform[1]
+                dx, dy = comp.x, comp.y
+                
+                # Scale translation
+                dx = int(round(dx * scale))
+                dy = int(round(dy * scale))
+                
+                pen.addComponent(new_comp_name, (xx, xy, yx, yy, dx, dy))
+        
+        cjk_glyf[cjk_glyph_name] = pen.glyph()
+    else:
+        # Simple glyph
+        pen = TTGlyphPen(cjk_glyf)
+        # Scale it
+        transform_pen = TransformPen(pen, (scale, 0, 0, scale, 0, 0))
+        src_glyph.draw(transform_pen, latin_glyf)
+        cjk_glyf[cjk_glyph_name] = pen.glyph()
+        
+    # Update metrics for the new glyph
+    if is_component:
+        latin_hmtx = latin_font['hmtx']
+        cjk_hmtx = cjk_font['hmtx']
+        try:
+            if latin_glyph_name in latin_hmtx:
+                w, lsb = latin_hmtx[latin_glyph_name]
+                cjk_hmtx[cjk_glyph_name] = (int(round(w * scale)), int(round(lsb * scale)))
+            else:
+                cjk_hmtx[cjk_glyph_name] = (0, 0)
+        except Exception as e:
+            print(f"ERROR accessing hmtx for {latin_glyph_name}: {e}", flush=True)
+            cjk_hmtx[cjk_glyph_name] = (0, 0)
+
+
+    return cjk_glyph_name
 
 
 def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None):
-    """
-    Merge Latin and CJK fonts into a single monospace font
-    
-    Args:
-        latin_font_path: Path to the Latin/English font (e.g., cour.ttf)
-        cjk_font_path: Path to the CJK font (e.g., mingliu.ttc)
-        output_path: Path for the output merged font
-        cjk_font_index: Index of font in TTC file (0 for MingLiU, 1 for MingLiU_HKSCS, etc.)
-        font_name: Name for the merged font (default: None, keeps original name)
-        filter_chars: String of characters to include from CJK font. If None, include all CJK chars.
-    """
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
     print(f"Loading CJK font: {cjk_font_path} (index {cjk_font_index})")
     cjk_font = TTFont(cjk_font_path, fontNumber=cjk_font_index)
     
-    # Get font metrics to determine target widths
-    # For monospace fonts, we want half-width:height = 1:2, full-width:height = 1:1
+    # 1. Detect char type (half-width/full-width) by MingLiU font
+    print("Analyzing MingLiU metrics...")
+    cjk_half_width, cjk_full_width = get_font_metrics(cjk_font)
+    print(f"MingLiU Half Width: {cjk_half_width}")
+    print(f"MingLiU Full Width: {cjk_full_width}")
     
-    # Get UPM (units per em) from the Latin font
-    upm = latin_font['head'].unitsPerEm
-    cjk_upm = cjk_font['head'].unitsPerEm
-    scale_factor = upm / cjk_upm
+    print("Analyzing Latin metrics...")
+    latin_width = get_latin_width(latin_font)
+    print(f"Latin Width: {latin_width}")
     
-    # Calculate target widths based on the font's em height
-    # For proper monospace: half-width should be upm/2, full-width should be upm
-    target_half_width = upm // 2
-    target_full_width = upm
+    # 3. The size of cour.ttf should be scaled
+    scale = cjk_half_width / latin_width
+    print(f"Scale Factor: {scale:.4f}")
     
-    print(f"Font UPM: {upm}")
-    print(f"Target half-width: {target_half_width}")
-    print(f"Target full-width: {target_full_width}")
+    # Prepare for merge
+    merged_font = cjk_font
+    cjk_cmap = merged_font.getBestCmap()
+    cjk_hmtx = merged_font['hmtx']
+    latin_cmap = latin_font.getBestCmap()
     
-    # Standardize widths in both fonts
-    print("Standardizing Latin font widths...")
-    standardize_font_widths(latin_font, target_half_width, target_full_width, is_cjk_font=False)
+    glyphs_added_map = {} # latin_name -> cjk_name
+    new_component_glyphs = []
     
-    print("Standardizing CJK font widths...")
-    standardize_font_widths(cjk_font, target_half_width, target_full_width, is_cjk_font=True)
+    print("Processing glyphs...")
+    count_replaced = 0
+    count_kept = 0
     
-    # Start with the Latin font as base
-    merged_font = latin_font
-    
-    # Get character maps
-    latin_cmap = latin_font.getBestCmap().copy()
-    cjk_cmap = cjk_font.getBestCmap()
-    
-    if not latin_cmap or not cjk_cmap:
-        print("Error: Could not get character maps from fonts")
-        return False
-    
-    # Copy CJK glyphs to the merged font
-    print("Merging CJK glyphs...")
-    glyf_table = merged_font.get('glyf')
-    cjk_glyf_table = cjk_font.get('glyf')
-    
-    # Copy metrics table data
-    hmtx_table = merged_font['hmtx']
-    cjk_hmtx_table = cjk_font['hmtx']
-    
-    # Identify all glyphs to copy (including components)
-    glyphs_to_copy = set()
-    
-    # First, find all CJK glyphs from cmap
-    for codepoint, cjk_glyph_name in cjk_cmap.items():
-        if is_cjk_char(codepoint):
-            # If filter_chars is provided, only include characters in the filter
-            if filter_chars is not None and chr(codepoint) not in filter_chars:
-                continue
-                
-            if isinstance(cjk_glyph_name, int):
-                cjk_glyph_name = f"glyph{cjk_glyph_name:05d}"
-            glyphs_to_copy.add(cjk_glyph_name)
-            # Update cmap immediately
-            latin_cmap[codepoint] = cjk_glyph_name
-
-    # Recursively find components
-    # We need to check if any glyph in glyphs_to_copy is composite
-    # and if so, add its components to the set
-    
-    print(f"Initial CJK glyphs to copy: {len(glyphs_to_copy)}")
-    
-    processed_glyphs = set()
-    while True:
-        new_glyphs = set()
-        for glyph_name in glyphs_to_copy:
-            if glyph_name in processed_glyphs:
-                continue
-            
-            processed_glyphs.add(glyph_name)
-            
-            # Check if glyph exists in CJK font
-            if glyph_name in cjk_glyf_table:
-                glyph = cjk_glyf_table[glyph_name]
-                if glyph.isComposite():
-                    for component in glyph.components:
-                        comp_name = component.glyphName
-                        if comp_name not in glyphs_to_copy and comp_name not in new_glyphs:
-                            new_glyphs.add(comp_name)
-        
-        if not new_glyphs:
-            break
-            
-        print(f"Found {len(new_glyphs)} component glyphs to add...")
-        glyphs_to_copy.update(new_glyphs)
-
-    print(f"Total glyphs to copy (including components): {len(glyphs_to_copy)}")
-
-    # Now copy all identified glyphs
-    glyphs_added = 0
-    successful_glyphs = set()
-    for cjk_glyph_name in glyphs_to_copy:
-        try:
-            # Check if glyph exists in CJK font
-            if glyf_table and cjk_glyf_table and cjk_glyph_name in cjk_glyf_table:
-                # Copy the glyph
-                src_glyph = cjk_glyf_table[cjk_glyph_name]
-                
-                if scale_factor != 1.0:
-                    if src_glyph.isComposite():
-                        # For composite glyphs, we only scale the offset (translation)
-                        # We do NOT scale the component itself because the component glyph 
-                        # will be scaled when it is copied (or already has been).
-                        pen = TTGlyphPen(glyf_table)
-                        for comp in src_glyph.components:
-                            # Get original transform
-                            xx, xy, yx, yy = 1, 0, 0, 1
-                            if hasattr(comp, 'transform'):
-                                xx, xy = comp.transform[0]
-                                yx, yy = comp.transform[1]
-                            dx, dy = comp.x, comp.y
-                            
-                            # Scale translation
-                            dx = int(round(dx * scale_factor))
-                            dy = int(round(dy * scale_factor))
-                            
-                            # Add component with new transform
-                            pen.addComponent(comp.glyphName, (xx, xy, yx, yy, dx, dy))
-                        
-                        glyf_table[cjk_glyph_name] = pen.glyph()
-                    else:
-                        # For simple glyphs, we scale the coordinates
-                        pen = TTGlyphPen(glyf_table)
-                        transform_pen = TransformPen(pen, (scale_factor, 0, 0, scale_factor, 0, 0))
-                        src_glyph.draw(transform_pen, cjk_glyf_table)
-                        new_glyph = pen.glyph()
-                        glyf_table[cjk_glyph_name] = new_glyph
-                else:
-                    glyf_table[cjk_glyph_name] = src_glyph
-                
-                # Recalculate bounds for the new glyph (simple or composite)
-                if scale_factor != 1.0:
-                     glyf_table[cjk_glyph_name].recalcBounds(glyf_table)
-                
-                # Copy the metrics
-                try:
-                    hmtx_table[cjk_glyph_name] = cjk_hmtx_table[cjk_glyph_name]
-                except KeyError:
-                    # Glyph might not have metrics if it's just a component? 
-                    # Usually all glyphs have hmtx. Use default if missing.
-                    hmtx_table[cjk_glyph_name] = (target_full_width, 0)
-                
-                glyphs_added += 1
-                successful_glyphs.add(cjk_glyph_name)
-        except (KeyError, Exception) as e:
-            # Skip glyphs that can't be copied
-            print(f"Warning: Failed to copy glyph {cjk_glyph_name}: {e}")
+    # Iterate over all characters in MingLiU
+    for codepoint, glyph_name in cjk_cmap.items():
+        if filter_chars and chr(codepoint) not in filter_chars:
             continue
-    
-    print(f"Successfully added {glyphs_added} glyphs")
-    
-    # Explicitly update glyphOrder to ensure cmap compiles correctly
-    if glyphs_added > 0:
-        print("Updating glyphOrder...")
-        current_order = merged_font.getGlyphOrder()
-        existing_set = set(current_order)
-        # Find glyphs that are in successful_glyphs but not in current_order
-        new_glyphs_list = [g for g in successful_glyphs if g not in existing_set]
-        # Sort for determinism
-        new_glyphs_list.sort()
-        
-        if new_glyphs_list:
-            new_order = current_order + new_glyphs_list
-            merged_font.setGlyphOrder(new_order)
-            print(f"Added {len(new_glyphs_list)} glyphs to glyphOrder")
             
-    # Clean up cmap - remove entries pointing to failed glyphs
-    failed_glyphs = glyphs_to_copy - successful_glyphs
-    if failed_glyphs:
-        print(f"Removing {len(failed_glyphs)} failed glyphs from cmap...")
-        # Create a list of keys to remove to avoid runtime error during iteration
-        keys_to_remove = [cp for cp, name in latin_cmap.items() if name in failed_glyphs]
-        for cp in keys_to_remove:
-            del latin_cmap[cp]
+        # Get current width
+        current_width = cjk_hmtx[glyph_name][0]
+        
+        # 2. For half-width char, use cour.ttf, otherwise use MingLiU
+        # Check if it matches half-width (allow small tolerance)
+        if abs(current_width - cjk_half_width) < 5:
+            # It is half-width. Try to replace with Latin glyph.
+            if codepoint in latin_cmap:
+                latin_glyph_name = latin_cmap[codepoint]
+                
+                # Copy and scale glyph
+                copy_glyph_from_latin(latin_font, merged_font, latin_glyph_name, glyph_name, scale, glyphs_added_map, new_component_glyphs)
+                
+                # Force width to be exactly cjk_half_width
+                l_w, l_lsb = latin_font['hmtx'][latin_glyph_name]
+                new_lsb = int(round(l_lsb * scale))
+                cjk_hmtx[glyph_name] = (cjk_half_width, new_lsb)
+                
+                count_replaced += 1
+            else:
+                # Not in Latin font, keep MingLiU but ensure width
+                cjk_hmtx[glyph_name] = (cjk_half_width, cjk_hmtx[glyph_name][1])
+                count_kept += 1
+        
+        elif abs(current_width - cjk_full_width) < 5:
+            # Full width, keep MingLiU, ensure width
+            cjk_hmtx[glyph_name] = (cjk_full_width, cjk_hmtx[glyph_name][1])
+            count_kept += 1
+        else:
+            # Other width? Keep as is.
+            pass
 
-    # Remove DSIG table if present to avoid signature validation errors
+    print(f"Replaced {count_replaced} half-width glyphs with Latin font.")
+    print(f"Kept {count_kept} glyphs (full-width or missing in Latin).")
+    
+    # Add new component glyphs to glyphOrder
+    if new_component_glyphs:
+        print(f"Adding {len(new_component_glyphs)} new component glyphs...")
+        glyph_order = merged_font.getGlyphOrder()
+        merged_font.setGlyphOrder(glyph_order + new_component_glyphs)
+
+    # Remove DSIG
     if 'DSIG' in merged_font:
-        print("Removing DSIG table...")
         del merged_font['DSIG']
-    
-    # Update OS/2 table to include CJK Unicode ranges
-    if 'OS/2' in merged_font:
-        print("Updating OS/2 table for CJK support...")
-        os2_table = merged_font['OS/2']
-        
-        # Update Unicode range bits (ulUnicodeRange1-4)
-        # Bit 59: CJK Unified Ideographs (4E00-9FFF)
-        # Bit 60: Private Use Area (E000-F8FF)
-        # Bit 61: CJK Compatibility Ideographs (F900-FAFF)
-        
-        # ulUnicodeRange2 bits (32-63)
-        # Set bit 59 (CJK Unified Ideographs) - bit 27 of ulUnicodeRange2
-        os2_table.ulUnicodeRange2 |= (1 << 27)  # Bit 59: CJK Unified Ideographs
-        os2_table.ulUnicodeRange2 |= (1 << 29)  # Bit 61: CJK Compatibility Ideographs
-        
-        # ulUnicodeRange3 bits (64-95)
-        # Set bit 64 (Hiragana), bit 65 (Katakana)
-        os2_table.ulUnicodeRange3 |= (1 << 0)   # Bit 64: Hiragana
-        os2_table.ulUnicodeRange3 |= (1 << 1)   # Bit 65: Katakana
-        os2_table.ulUnicodeRange3 |= (1 << 4)   # Bit 68: Hangul Syllables
-        
-        # Update codepage range for Chinese support
-        # Bit 17: Chinese: Simplified chars (PRC and Singapore)
-        # Bit 18: Chinese: Traditional chars (Taiwan and Hong Kong)
-        os2_table.ulCodePageRange1 |= (1 << 17)  # Simplified Chinese
-        os2_table.ulCodePageRange1 |= (1 << 18)  # Traditional Chinese
-    
-    # Update the cmap table
-    # Create new cmap tables to ensure they are clean and contain all mappings
-    from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
-    
-    # Windows Unicode BMP (Platform 3, Encoding 1, Format 4)
-    cmap_win = CmapSubtable.newSubtable(4)
-    cmap_win.platformID = 3
-    cmap_win.platEncID = 1
-    cmap_win.language = 0
-    cmap_win.cmap = latin_cmap
-    
-    # Unicode BMP (Platform 0, Encoding 3, Format 4)
-    cmap_uni = CmapSubtable.newSubtable(4)
-    cmap_uni.platformID = 0
-    cmap_uni.platEncID = 3
-    cmap_uni.language = 0
-    cmap_uni.cmap = latin_cmap
-    
-    merged_font['cmap'].tables = [cmap_win, cmap_uni]
-    
-    # Update font name if provided
+
+    # Update Name Table
     if font_name:
         print(f"Setting font name to: {font_name}")
         name_table = merged_font['name']
-
-        # Prepare consistent naming components
         family_name = font_name
         subfamily_name = 'Regular'
         full_name = f"{font_name} {subfamily_name}".strip()
         unique_name = f"{font_name} {datetime.now().strftime('%Y%m%d')}"
         ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
 
-        # Helper for writing all platform/encoding combos Windows and macOS expect
         def set_name_all_platforms(name_id, value):
-            if value is None:
-                return
-            name_table.setName(value, name_id, 3, 1, 0x409)  # Windows, Unicode BMP, en-US
-            name_table.setName(value, name_id, 1, 0, 0)      # macOS, Roman, English
-            name_table.setName(value, name_id, 0, 3, 0)      # Unicode, BMP
+            if value is None: return
+            name_table.setName(value, name_id, 3, 1, 0x409)
+            name_table.setName(value, name_id, 1, 0, 0)
+            name_table.setName(value, name_id, 0, 3, 0)
 
-        # Remove any stale name records likely to confuse Windows viewers
-        # Also remove WWS names (21, 22) if present
         name_ids_to_clean = {1, 2, 3, 4, 6, 16, 17, 21, 22}
-        name_table.names = [
-            record for record in name_table.names if record.nameID not in name_ids_to_clean
-        ]
+        name_table.names = [r for r in name_table.names if r.nameID not in name_ids_to_clean]
 
-        # Populate the critical name records
-        set_name_all_platforms(1, family_name)      # Font Family name
-        set_name_all_platforms(2, subfamily_name)   # Font Subfamily (Regular)
-        set_name_all_platforms(3, unique_name)      # Unique identifier
-        set_name_all_platforms(4, full_name)        # Full font name
-        set_name_all_platforms(6, ps_name)          # PostScript name (no spaces)
-        set_name_all_platforms(16, family_name)     # Typographic family name
-        set_name_all_platforms(17, subfamily_name)  # Typographic subfamily name
-    
-    # Save the merged font
-    print(f"Saving merged font to: {output_path}")
-    merged_font.save(output_path)
-    
-    print("Font merge completed successfully!")
-    return True
+        set_name_all_platforms(1, family_name)
+        set_name_all_platforms(2, subfamily_name)
+        set_name_all_platforms(3, unique_name)
+        set_name_all_platforms(4, full_name)
+        set_name_all_platforms(6, ps_name)
+
+    # Ensure glyphOrder matches glyf table to prevent AssertionError
+    if 'glyf' in merged_font:
+        glyf_table = merged_font['glyf']
+        glyf_keys = set(glyf_table.keys())
+        current_order = merged_font.getGlyphOrder()
+        
+        # Filter out glyphs from order that are not in glyf table, and remove duplicates
+        seen = set()
+        final_order = []
+        for g in current_order:
+            if g in glyf_keys and g not in seen:
+                final_order.append(g)
+                seen.add(g)
+        
+        # Add any glyphs in glyf table that are missing from order
+        missing_glyphs = [g for g in glyf_keys if g not in seen]
+        
+        if missing_glyphs:
+            print(f"Warning: {len(missing_glyphs)} glyphs were in glyf table but not in glyphOrder. Adding them.")
+            final_order.extend(sorted(missing_glyphs))
+            
+        merged_font.setGlyphOrder(final_order)
+
 
 
 def main():
