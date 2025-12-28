@@ -202,7 +202,7 @@ def apply_y_offset_to_glyphs(font, y_offset, exclude_glyphs=None):
                     coord_list[i] = (x, y + y_offset)
 
 
-def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0):
+def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, font_name=None, filter_chars=None, latin_y_offset=0, cjk_y_offset=0, font_ascender=None):
     print(f"Loading Latin font: {latin_font_path}")
     latin_font = TTFont(latin_font_path)
     
@@ -397,6 +397,17 @@ def merge_fonts(latin_font_path, cjk_font_path, output_path, cjk_font_index=0, f
         set_name_all_platforms(4, full_name)
         set_name_all_platforms(6, ps_name)
 
+    # Set font ascender if specified
+    if font_ascender is not None:
+        print(f"Setting font ascender to: {font_ascender}")
+        # Update hhea table
+        if 'hhea' in merged_font:
+            merged_font['hhea'].ascent = font_ascender
+        # Update OS/2 table
+        if 'OS/2' in merged_font:
+            merged_font['OS/2'].sTypoAscender = font_ascender
+            merged_font['OS/2'].usWinAscent = font_ascender
+
     # Ensure glyphOrder matches glyf table to prevent AssertionError
     if 'glyf' in merged_font:
         glyf_table = merged_font['glyf']
@@ -496,6 +507,12 @@ Examples:
         default=0,
         help='Vertical offset (in font units) to apply to CJK glyphs (default: 0)'
     )
+
+    parser.add_argument(
+        '--font-ascender',
+        type=int,
+        help='Hard code the font ascender value in font units (sets both hhea and OS/2 tables)'
+    )
     
     args = parser.parse_args()
     
@@ -537,7 +554,8 @@ Examples:
         font_name,
         filter_chars=args.char,
         latin_y_offset=args.latin_y_offset,
-        cjk_y_offset=args.cjk_y_offset
+        cjk_y_offset=args.cjk_y_offset,
+        font_ascender=args.font_ascender
     )
     
     return 0 if success else 1
