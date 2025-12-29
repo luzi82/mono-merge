@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Pick font source (base or new) for each character based on availability and metrics.
-Merges two CSV files from dump_char_csv.py and determines which font to use for each codepoint.
+Pick font source for each character based on availability and metrics.
+Merges multiple CSV files from dump_char_csv.py and determines which font to use for each codepoint.
 """
 import argparse
 import csv
@@ -26,113 +26,111 @@ def is_valid_glyph(row):
         return False
 
 
-def pick_font_sources(input_base_csv, input_new_csv, output_csv):
+def pick_font_sources(input_csv_paths, output_csv):
     """
-    Merge two character CSV files and pick font source for each character.
+    Merge multiple character CSV files and pick font source for each character.
     
-    Logic (evaluated top to bottom):
-    1. If exists in base font AND advance_width > 0 AND not is_empty_glyph → use "base"
-    2. Else if exists in new font AND advance_width > 0 AND not is_empty_glyph → use "new"
-    3. Else → use "base"
+    Logic (evaluated in order):
+    1. First pass: Check each CSV in order for valid glyph (advance_width > 0 AND not is_empty_glyph)
+    2. Second pass: If no valid glyph found, check each CSV in order for any existing character
     
     Args:
-        input_base_csv: Path to base font CSV file
-        input_new_csv: Path to new font CSV file
+        input_csv_paths: List of paths to input font CSV files
         output_csv: Path to output CSV file
     """
+    if not input_csv_paths:
+        print("Error: No input CSV files provided", file=sys.stderr)
+        sys.exit(1)
+    
+    # Open all input files
     try:
-        base_file = open(input_base_csv, 'r', encoding='utf-8', newline='')
-        new_file = open(input_new_csv, 'r', encoding='utf-8', newline='')
+        input_files = [open(path, 'r', encoding='utf-8', newline='') for path in input_csv_paths]
         out_file = open(output_csv, 'w', encoding='utf-8', newline='')
     except IOError as e:
         print(f"Error opening files: {e}", file=sys.stderr)
         sys.exit(1)
     
     try:
-        base_reader = csv.DictReader(base_file)
-        new_reader = csv.DictReader(new_file)
+        readers = [csv.DictReader(f) for f in input_files]
         
-        # Verify required columns
-        base_fields = base_reader.fieldnames
-        new_fields = new_reader.fieldnames
-        
-        if not base_fields or 'codepoint_dec' not in base_fields:
-            print("Error: Base CSV missing required columns", file=sys.stderr)
+        # Verify required columns and get field structure from first CSV
+        first_fields = readers[0].fieldnames
+        if not first_fields or 'codepoint_dec' not in first_fields:
+            print("Error: First CSV missing required columns", file=sys.stderr)
             sys.exit(1)
         
-        if not new_fields or 'codepoint_dec' not in new_fields:
-            print("Error: New CSV missing required columns", file=sys.stderr)
-            sys.exit(1)
+        # Verify all CSVs have the same field structure
+        for i, reader in enumerate(readers[1:], start=1):
+            if reader.fieldnames != first_fields:
+                print(f"Error: CSV file {i} has different field structure than first CSV", file=sys.stderr)
+                print(f"First CSV fields: {first_fields}", file=sys.stderr)
+                print(f"CSV {i} fields: {reader.fieldnames}", file=sys.stderr)
+                sys.exit(1)
         
-        # Verify both CSVs have the same field structure
-        if base_fields != new_fields:
-            print("Error: Base and new CSV files have different field structures", file=sys.stderr)
-            print(f"Base fields: {base_fields}", file=sys.stderr)
-            print(f"New fields: {new_fields}", file=sys.stderr)
-            sys.exit(1)
-        
-        # Use base font fields as template and add 'pick' column
-        output_fields = list(base_fields)
+        # Use first CSV fields as template and add 'pick' column
+        output_fields = list(first_fields)
         if 'pick' not in output_fields:
             output_fields.append('pick')
         
         writer = csv.DictWriter(out_file, fieldnames=output_fields)
         writer.writeheader()
         
-        # Stream through both files (both sorted by codepoint_dec)
-        base_row = next(base_reader, None)
-        new_row = next(new_reader, None)
+        # Initialize current rows for each reader
+        current_rows = [next(reader, None) for reader in readers]
         
-        while base_row is not None or new_row is not None:
-            base_cp = int(base_row['codepoint_dec']) if base_row else float('inf')
-            new_cp = int(new_row['codepoint_dec']) if new_row else float('inf')
+        # Stream through all files (all sorted by codepoint_dec)
+        while any(row is not None for row in current_rows):
+            # Find the minimum codepoint among all current rows
+            min_cp = float('inf')
+            for row in current_rows:
+                if row is not None:
+                    cp = int(row['codepoint_dec'])
+                    if cp < min_cp:
+                        min_cp = cp
             
-            if base_cp < new_cp:
-                # Character only in base font
-                output_row = base_row.copy()
-                if is_valid_glyph(base_row):
-                    output_row['pick'] = 'base'
-                else:
-                    output_row['pick'] = 'base'  # Default to base even if invalid
+            if min_cp == float('inf'):
+                break
+            
+            # Collect all rows with this codepoint
+            rows_at_cp = []
+            for i, row in enumerate(current_rows):
+                if row is not None and int(row['codepoint_dec']) == min_cp:
+                    rows_at_cp.append((i, row))
+            
+            # Apply picking logic: First pass - find valid glyph
+            picked_index = None
+            picked_row = None
+            
+            for csv_index in range(len(readers)):
+                matching = [row for idx, row in rows_at_cp if idx == csv_index]
+                if matching and is_valid_glyph(matching[0]):
+                    picked_index = csv_index
+                    picked_row = matching[0]
+                    break
+            
+            # Second pass - find any existing character if no valid glyph found
+            if picked_index is None:
+                for csv_index in range(len(readers)):
+                    matching = [row for idx, row in rows_at_cp if idx == csv_index]
+                    if matching:
+                        picked_index = csv_index
+                        picked_row = matching[0]
+                        break
+            
+            # Write output row
+            if picked_row is not None:
+                output_row = picked_row.copy()
+                output_row['pick'] = str(picked_index)
                 writer.writerow(output_row)
-                base_row = next(base_reader, None)
-                
-            elif new_cp < base_cp:
-                # Character only in new font
-                output_row = base_row.copy() if base_row else {}
-                # Fill with new font data, but preserve base structure
-                for key in output_fields:
-                    if key == 'pick':
-                        if is_valid_glyph(new_row):
-                            output_row['pick'] = 'new'
-                        else:
-                            output_row['pick'] = 'base'
-                    elif key in new_row:
-                        output_row[key] = new_row[key]
-                    elif key not in output_row:
-                        output_row[key] = ''
-                writer.writerow(output_row)
-                new_row = next(new_reader, None)
-                
-            else:
-                # Character in both fonts (base_cp == new_cp)
-                output_row = base_row.copy()
-                
-                # Apply picking logic
-                if is_valid_glyph(base_row):
-                    output_row['pick'] = 'base'
-                elif is_valid_glyph(new_row):
-                    output_row['pick'] = 'new'
-                else:
-                    output_row['pick'] = 'base'
-                
-                writer.writerow(output_row)
-                base_row = next(base_reader, None)
-                new_row = next(new_reader, None)
+            
+            # Advance readers that had this codepoint
+            for i, row in enumerate(current_rows):
+                if row is not None and int(row['codepoint_dec']) == min_cp:
+                    current_rows[i] = next(readers[i], None)
     
     finally:
-        base_file.close()
-        new_file.close()
+        for f in input_files:
+            f.close()
         out_file.close()
 
 
@@ -142,12 +140,8 @@ def main():
         description='Pick font source for each character based on availability and metrics'
     )
     parser.add_argument(
-        'input_base_csv',
-        help='Base font CSV file (from dump_char_csv.py)'
-    )
-    parser.add_argument(
-        'input_new_csv',
-        help='New font CSV file (from dump_char_csv.py)'
+        'input_csv_list',
+        help='Comma-separated list of input font CSV files (from dump_char_csv.py), e.g. "font1.csv,font2.csv"'
     )
     parser.add_argument(
         'output_csv',
@@ -156,7 +150,10 @@ def main():
     
     args = parser.parse_args()
     
-    pick_font_sources(args.input_base_csv, args.input_new_csv, args.output_csv)
+    # Parse comma-separated CSV list
+    input_csv_paths = [path.strip() for path in args.input_csv_list.split(',')]
+    
+    pick_font_sources(input_csv_paths, args.output_csv)
     print(f"Font picking complete. Output written to: {args.output_csv}")
 
 
