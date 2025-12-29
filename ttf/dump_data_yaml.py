@@ -67,24 +67,29 @@ def dump_head_table(font):
         return None
     
     head = font['head']
-    return {
-        'units_per_em': head.unitsPerEm,
-        'created': str(head.created) if hasattr(head, 'created') else None,
-        'modified': str(head.modified) if hasattr(head, 'modified') else None,
-        'x_min': head.xMin,
-        'y_min': head.yMin,
-        'x_max': head.xMax,
-        'y_max': head.yMax,
-        'mac_style': head.macStyle,
-        'lowest_rec_ppem': head.lowestRecPPEM,
-        'font_direction_hint': head.fontDirectionHint,
-        'index_to_loc_format': head.indexToLocFormat,
-        'glyph_data_format': head.glyphDataFormat,
-        'flags': head.flags,
-        'font_revision': round(head.fontRevision, 4),
-        'magic_number': hex(head.magicNumber),
-        'checksum_adjustment': hex(head.checkSumAdjustment),
-    }
+    result = {}
+    
+    # Dynamically capture all head table attributes
+    for attr_name in dir(head):
+        if attr_name.startswith('_') or callable(getattr(head, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(head, attr_name)
+            
+            # Convert specific types for better readability
+            if attr_name in ['created', 'modified']:
+                result[attr_name] = str(attr_value)
+            elif attr_name in ['magicNumber', 'checkSumAdjustment']:
+                result[attr_name] = hex(attr_value)
+            elif attr_name == 'fontRevision':
+                result[attr_name] = round(attr_value, 4)
+            else:
+                result[attr_name] = attr_value
+        except Exception:
+            pass
+    
+    return result
 
 
 def dump_hhea_table(font):
@@ -93,19 +98,19 @@ def dump_hhea_table(font):
         return None
     
     hhea = font['hhea']
-    return {
-        'ascender': hhea.ascent,
-        'descender': hhea.descent,
-        'line_gap': hhea.lineGap,
-        'advance_width_max': hhea.advanceWidthMax,
-        'min_left_side_bearing': hhea.minLeftSideBearing,
-        'min_right_side_bearing': hhea.minRightSideBearing,
-        'x_max_extent': hhea.xMaxExtent,
-        'caret_slope_rise': hhea.caretSlopeRise,
-        'caret_slope_run': hhea.caretSlopeRun,
-        'caret_offset': hhea.caretOffset,
-        'number_of_h_metrics': hhea.numberOfHMetrics,
-    }
+    result = {}
+    
+    # Dynamically capture all hhea table attributes
+    for attr_name in dir(hhea):
+        if attr_name.startswith('_') or callable(getattr(hhea, attr_name)):
+            continue
+        
+        try:
+            result[attr_name] = getattr(hhea, attr_name)
+        except Exception:
+            pass
+    
+    return result
 
 
 def dump_os2_table(font):
@@ -114,69 +119,33 @@ def dump_os2_table(font):
         return None
     
     os2 = font['OS/2']
-    result = {
-        'version': os2.version,
-        'x_avg_char_width': os2.xAvgCharWidth,
-        'us_weight_class': os2.usWeightClass,
-        'us_width_class': os2.usWidthClass,
-        'fs_type': os2.fsType,
-        'y_subscript_x_size': os2.ySubscriptXSize,
-        'y_subscript_y_size': os2.ySubscriptYSize,
-        'y_subscript_x_offset': os2.ySubscriptXOffset,
-        'y_subscript_y_offset': os2.ySubscriptYOffset,
-        'y_superscript_x_size': os2.ySuperscriptXSize,
-        'y_superscript_y_size': os2.ySuperscriptYSize,
-        'y_superscript_x_offset': os2.ySuperscriptXOffset,
-        'y_superscript_y_offset': os2.ySuperscriptYOffset,
-        'y_strikeout_size': os2.yStrikeoutSize,
-        'y_strikeout_position': os2.yStrikeoutPosition,
-        's_family_class': os2.sFamilyClass,
-        's_typo_ascender': os2.sTypoAscender,
-        's_typo_descender': os2.sTypoDescender,
-        's_typo_line_gap': os2.sTypoLineGap,
-        'us_win_ascent': os2.usWinAscent,
-        'us_win_descent': os2.usWinDescent,
-        'fs_selection': os2.fsSelection,
-        'us_first_char_index': os2.usFirstCharIndex,
-        'us_last_char_index': os2.usLastCharIndex,
-        's_x_height': getattr(os2, 'sxHeight', None),
-        's_cap_height': getattr(os2, 'sCapHeight', None),
-        'us_default_char': getattr(os2, 'usDefaultChar', None),
-        'us_break_char': getattr(os2, 'usBreakChar', None),
-        'us_max_context': getattr(os2, 'usMaxContext', None),
-    }
+    result = {}
     
-    # Panose classification
-    if hasattr(os2, 'panose'):
-        panose = os2.panose
-        result['panose'] = {
-            'b_family_type': panose.bFamilyType,
-            'b_serif_style': panose.bSerifStyle,
-            'b_weight': panose.bWeight,
-            'b_proportion': panose.bProportion,
-            'b_contrast': panose.bContrast,
-            'b_stroke_variation': panose.bStrokeVariation,
-            'b_arm_style': panose.bArmStyle,
-            'b_letterform': panose.bLetterForm,
-            'b_midline': panose.bMidline,
-            'b_x_height': panose.bXHeight,
-        }
-    
-    # Unicode ranges (if available)
-    if hasattr(os2, 'ulUnicodeRange1'):
-        result['unicode_ranges'] = {
-            'range1': hex(os2.ulUnicodeRange1),
-            'range2': hex(os2.ulUnicodeRange2),
-            'range3': hex(os2.ulUnicodeRange3),
-            'range4': hex(os2.ulUnicodeRange4),
-        }
-    
-    # Code page ranges (if available)
-    if hasattr(os2, 'ulCodePageRange1'):
-        result['code_page_ranges'] = {
-            'range1': hex(os2.ulCodePageRange1),
-            'range2': hex(os2.ulCodePageRange2),
-        }
+    # Dynamically capture all OS/2 attributes
+    for attr_name in dir(os2):
+        # Skip private/internal attributes and methods
+        if attr_name.startswith('_') or callable(getattr(os2, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(os2, attr_name)
+            
+            # Handle special cases
+            if attr_name == 'panose':
+                # Panose classification - expand its sub-attributes
+                result['panose'] = {}
+                for panose_attr in dir(attr_value):
+                    if not panose_attr.startswith('_') and not callable(getattr(attr_value, panose_attr)):
+                        result['panose'][panose_attr] = getattr(attr_value, panose_attr)
+            elif isinstance(attr_value, int) and attr_value > 0xFFFF:
+                # Convert large integers to hex for readability (like unicode/codepage ranges)
+                result[attr_name] = hex(attr_value)
+            else:
+                # Store the value as-is
+                result[attr_name] = attr_value
+        except Exception:
+            # Skip attributes that can't be accessed
+            pass
     
     return result
 
@@ -187,17 +156,19 @@ def dump_post_table(font):
         return None
     
     post = font['post']
-    return {
-        'format_type': post.formatType,
-        'italic_angle': post.italicAngle,
-        'underline_position': post.underlinePosition,
-        'underline_thickness': post.underlineThickness,
-        'is_fixed_pitch': post.isFixedPitch,
-        'min_mem_type42': post.minMemType42,
-        'max_mem_type42': post.maxMemType42,
-        'min_mem_type1': post.minMemType1,
-        'max_mem_type1': post.maxMemType1,
-    }
+    result = {}
+    
+    # Dynamically capture all post table attributes
+    for attr_name in dir(post):
+        if attr_name.startswith('_') or callable(getattr(post, attr_name)):
+            continue
+        
+        try:
+            result[attr_name] = getattr(post, attr_name)
+        except Exception:
+            pass
+    
+    return result
 
 
 def dump_maxp_table(font):
@@ -206,31 +177,23 @@ def dump_maxp_table(font):
         return None
     
     maxp = font['maxp']
-    result = {
-        'num_glyphs': maxp.numGlyphs,
-    }
+    result = {}
     
-    # Version if available
-    if hasattr(maxp, 'tableVersion'):
-        result['version'] = str(maxp.tableVersion)
-    
-    # TrueType-specific fields (version 1.0)
-    if hasattr(maxp, 'maxPoints'):
-        result.update({
-            'max_points': maxp.maxPoints,
-            'max_contours': maxp.maxContours,
-            'max_composite_points': maxp.maxCompositePoints,
-            'max_composite_contours': maxp.maxCompositeContours,
-            'max_zones': maxp.maxZones,
-            'max_twilight_points': maxp.maxTwilightPoints,
-            'max_storage': maxp.maxStorage,
-            'max_function_defs': maxp.maxFunctionDefs,
-            'max_instruction_defs': maxp.maxInstructionDefs,
-            'max_stack_elements': maxp.maxStackElements,
-            'max_size_of_instructions': maxp.maxSizeOfInstructions,
-            'max_component_elements': maxp.maxComponentElements,
-            'max_component_depth': maxp.maxComponentDepth,
-        })
+    # Dynamically capture all maxp table attributes
+    for attr_name in dir(maxp):
+        if attr_name.startswith('_') or callable(getattr(maxp, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(maxp, attr_name)
+            
+            # Convert tableVersion to string for consistency
+            if attr_name == 'tableVersion':
+                result[attr_name] = str(attr_value)
+            else:
+                result[attr_name] = attr_value
+        except Exception:
+            pass
     
     return result
 
@@ -241,19 +204,19 @@ def dump_vhea_table(font):
         return None
     
     vhea = font['vhea']
-    return {
-        'ascent': vhea.ascent,
-        'descent': vhea.descent,
-        'line_gap': vhea.lineGap,
-        'advance_height_max': vhea.advanceHeightMax,
-        'min_top_side_bearing': vhea.minTopSideBearing,
-        'min_bottom_side_bearing': vhea.minBottomSideBearing,
-        'y_max_extent': vhea.yMaxExtent,
-        'caret_slope_rise': vhea.caretSlopeRise,
-        'caret_slope_run': vhea.caretSlopeRun,
-        'caret_offset': vhea.caretOffset,
-        'number_of_v_metrics': vhea.numberOfVMetrics,
-    }
+    result = {}
+    
+    # Dynamically capture all vhea table attributes
+    for attr_name in dir(vhea):
+        if attr_name.startswith('_') or callable(getattr(vhea, attr_name)):
+            continue
+        
+        try:
+            result[attr_name] = getattr(vhea, attr_name)
+        except Exception:
+            pass
+    
+    return result
 
 
 def dump_gasp_table(font):
@@ -262,10 +225,25 @@ def dump_gasp_table(font):
         return None
     
     gasp = font['gasp']
-    return {
-        'version': gasp.version,
-        'gasp_ranges': {str(k): v for k, v in gasp.gaspRange.items()},
-    }
+    result = {}
+    
+    # Dynamically capture all gasp table attributes
+    for attr_name in dir(gasp):
+        if attr_name.startswith('_') or callable(getattr(gasp, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(gasp, attr_name)
+            
+            # Convert gaspRange dict keys to strings for YAML compatibility
+            if attr_name == 'gaspRange' and isinstance(attr_value, dict):
+                result[attr_name] = {str(k): v for k, v in attr_value.items()}
+            else:
+                result[attr_name] = attr_value
+        except Exception:
+            pass
+    
+    return result
 
 
 def dump_cmap_info(font):
@@ -356,17 +334,28 @@ def dump_kern_table(font):
         return None
     
     kern = font['kern']
-    result = {
-        'version': kern.version,
-    }
+    result = {}
     
-    if hasattr(kern, 'kernTables'):
-        result['num_subtables'] = len(kern.kernTables)
-        total_pairs = 0
-        for subtable in kern.kernTables:
-            if hasattr(subtable, 'kernTable'):
-                total_pairs += len(subtable.kernTable)
-        result['total_kern_pairs'] = total_pairs
+    # Dynamically capture all kern table attributes
+    for attr_name in dir(kern):
+        if attr_name.startswith('_') or callable(getattr(kern, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(kern, attr_name)
+            
+            # Handle special cases
+            if attr_name == 'kernTables' and hasattr(attr_value, '__len__'):
+                result['num_subtables'] = len(attr_value)
+                total_pairs = 0
+                for subtable in attr_value:
+                    if hasattr(subtable, 'kernTable'):
+                        total_pairs += len(subtable.kernTable)
+                result['total_kern_pairs'] = total_pairs
+            else:
+                result[attr_name] = attr_value
+        except Exception:
+            pass
     
     return result
 
@@ -379,23 +368,36 @@ def dump_gdef_table(font):
     gdef = font['GDEF']
     result = {}
     
-    if hasattr(gdef.table, 'Version'):
-        result['version'] = str(gdef.table.Version)
-    
-    if hasattr(gdef.table, 'GlyphClassDef') and gdef.table.GlyphClassDef:
-        result['has_glyph_class_def'] = True
-    
-    if hasattr(gdef.table, 'AttachList') and gdef.table.AttachList:
-        result['has_attach_list'] = True
-    
-    if hasattr(gdef.table, 'LigCaretList') and gdef.table.LigCaretList:
-        result['has_lig_caret_list'] = True
-    
-    if hasattr(gdef.table, 'MarkAttachClassDef') and gdef.table.MarkAttachClassDef:
-        result['has_mark_attach_class_def'] = True
-    
-    if hasattr(gdef.table, 'MarkGlyphSetsDef') and gdef.table.MarkGlyphSetsDef:
-        result['has_mark_glyph_sets_def'] = True
+    # Dynamically capture all GDEF table attributes
+    for attr_name in dir(gdef):
+        if attr_name.startswith('_') or callable(getattr(gdef, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(gdef, attr_name)
+            
+            # Handle nested table object
+            if attr_name == 'table' and hasattr(attr_value, '__dict__'):
+                result['table_info'] = {}
+                for sub_attr in dir(attr_value):
+                    if sub_attr.startswith('_') or callable(getattr(attr_value, sub_attr)):
+                        continue
+                    try:
+                        sub_value = getattr(attr_value, sub_attr)
+                        # Convert Version to string
+                        if sub_attr == 'Version':
+                            result['table_info'][sub_attr] = str(sub_value)
+                        # For complex objects, just note their presence
+                        elif isinstance(sub_value, (str, int, float, bool, type(None))):
+                            result['table_info'][sub_attr] = sub_value
+                        elif sub_value:
+                            result['table_info'][f'has_{sub_attr}'] = True
+                    except Exception:
+                        pass
+            elif isinstance(attr_value, (str, int, float, bool, type(None), list)):
+                result[attr_name] = attr_value
+        except Exception:
+            pass
     
     return result if result else None
 
@@ -408,19 +410,42 @@ def dump_gpos_table(font):
     gpos = font['GPOS']
     result = {}
     
-    if hasattr(gpos.table, 'Version'):
-        result['version'] = str(gpos.table.Version)
-    
-    if hasattr(gpos.table, 'ScriptList') and gpos.table.ScriptList:
-        result['num_scripts'] = len(gpos.table.ScriptList.ScriptRecord)
-        result['scripts'] = [str(rec.ScriptTag) for rec in gpos.table.ScriptList.ScriptRecord]
-    
-    if hasattr(gpos.table, 'FeatureList') and gpos.table.FeatureList:
-        result['num_features'] = len(gpos.table.FeatureList.FeatureRecord)
-        result['features'] = [str(rec.FeatureTag) for rec in gpos.table.FeatureList.FeatureRecord]
-    
-    if hasattr(gpos.table, 'LookupList') and gpos.table.LookupList:
-        result['num_lookups'] = len(gpos.table.LookupList.Lookup)
+    # Dynamically capture all GPOS table attributes
+    for attr_name in dir(gpos):
+        if attr_name.startswith('_') or callable(getattr(gpos, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(gpos, attr_name)
+            
+            # Handle nested table object
+            if attr_name == 'table' and hasattr(attr_value, '__dict__'):
+                result['table_info'] = {}
+                for sub_attr in dir(attr_value):
+                    if sub_attr.startswith('_') or callable(getattr(attr_value, sub_attr)):
+                        continue
+                    try:
+                        sub_value = getattr(attr_value, sub_attr)
+                        if sub_attr == 'Version':
+                            result['table_info']['version'] = str(sub_value)
+                        elif sub_attr == 'ScriptList' and sub_value and hasattr(sub_value, 'ScriptRecord'):
+                            result['table_info']['num_scripts'] = len(sub_value.ScriptRecord)
+                            result['table_info']['scripts'] = [str(rec.ScriptTag) for rec in sub_value.ScriptRecord]
+                        elif sub_attr == 'FeatureList' and sub_value and hasattr(sub_value, 'FeatureRecord'):
+                            result['table_info']['num_features'] = len(sub_value.FeatureRecord)
+                            # features list hidden - use dump_gpos_feature_csv.py to extract
+                        elif sub_attr == 'LookupList' and sub_value and hasattr(sub_value, 'Lookup'):
+                            result['table_info']['num_lookups'] = len(sub_value.Lookup)
+                        elif isinstance(sub_value, (str, int, float, bool, type(None))):
+                            result['table_info'][sub_attr] = sub_value
+                        elif sub_value:
+                            result['table_info'][f'has_{sub_attr}'] = True
+                    except Exception:
+                        pass
+            elif isinstance(attr_value, (str, int, float, bool, type(None), list)):
+                result[attr_name] = attr_value
+        except Exception:
+            pass
     
     return result if result else None
 
@@ -433,19 +458,42 @@ def dump_gsub_table(font):
     gsub = font['GSUB']
     result = {}
     
-    if hasattr(gsub.table, 'Version'):
-        result['version'] = str(gsub.table.Version)
-    
-    if hasattr(gsub.table, 'ScriptList') and gsub.table.ScriptList:
-        result['num_scripts'] = len(gsub.table.ScriptList.ScriptRecord)
-        result['scripts'] = [str(rec.ScriptTag) for rec in gsub.table.ScriptList.ScriptRecord]
-    
-    if hasattr(gsub.table, 'FeatureList') and gsub.table.FeatureList:
-        result['num_features'] = len(gsub.table.FeatureList.FeatureRecord)
-        result['features'] = [str(rec.FeatureTag) for rec in gsub.table.FeatureList.FeatureRecord]
-    
-    if hasattr(gsub.table, 'LookupList') and gsub.table.LookupList:
-        result['num_lookups'] = len(gsub.table.LookupList.Lookup)
+    # Dynamically capture all GSUB table attributes
+    for attr_name in dir(gsub):
+        if attr_name.startswith('_') or callable(getattr(gsub, attr_name)):
+            continue
+        
+        try:
+            attr_value = getattr(gsub, attr_name)
+            
+            # Handle nested table object
+            if attr_name == 'table' and hasattr(attr_value, '__dict__'):
+                result['table_info'] = {}
+                for sub_attr in dir(attr_value):
+                    if sub_attr.startswith('_') or callable(getattr(attr_value, sub_attr)):
+                        continue
+                    try:
+                        sub_value = getattr(attr_value, sub_attr)
+                        if sub_attr == 'Version':
+                            result['table_info']['version'] = str(sub_value)
+                        elif sub_attr == 'ScriptList' and sub_value and hasattr(sub_value, 'ScriptRecord'):
+                            result['table_info']['num_scripts'] = len(sub_value.ScriptRecord)
+                            result['table_info']['scripts'] = [str(rec.ScriptTag) for rec in sub_value.ScriptRecord]
+                        elif sub_attr == 'FeatureList' and sub_value and hasattr(sub_value, 'FeatureRecord'):
+                            result['table_info']['num_features'] = len(sub_value.FeatureRecord)
+                            # features list hidden - use dump_gsub_feature_csv.py to extract
+                        elif sub_attr == 'LookupList' and sub_value and hasattr(sub_value, 'Lookup'):
+                            result['table_info']['num_lookups'] = len(sub_value.Lookup)
+                        elif isinstance(sub_value, (str, int, float, bool, type(None))):
+                            result['table_info'][sub_attr] = sub_value
+                        elif sub_value:
+                            result['table_info'][f'has_{sub_attr}'] = True
+                    except Exception:
+                        pass
+            elif isinstance(attr_value, (str, int, float, bool, type(None), list)):
+                result[attr_name] = attr_value
+        except Exception:
+            pass
     
     return result if result else None
 
