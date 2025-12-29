@@ -5,3 +5,6 @@
 (Get-Command python).Source
 
 
+python monomerge.py -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf --cjk-y-offset=-81 -o output/test.ttf
+
+python font_preview.py output/test.ttf "你好嗎 123" output/test --debug
