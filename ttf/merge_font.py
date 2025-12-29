@@ -68,10 +68,27 @@ def merge_fonts(input_base_ttf, input_ttf_list, input_pick_csv, input_meta_yaml,
 
     # Remove GSUB and GPOS tables to avoid "Bad ligature glyph" errors
     # since we are changing glyph indices and names
-    for table_tag in ['GSUB', 'GPOS']:
+    # Also remove variable font tables and other unnecessary tables
+    tables_to_remove = [
+        'GSUB', 'GPOS', 'DSIG', 'HVAR', 'VVAR', 'STAT', 'avar', 
+        'fvar', 'gvar', 'cvar', 'MVAR'
+    ]
+    for table_tag in tables_to_remove:
         if table_tag in merged_font:
             print(f"Removing {table_tag} table...")
             del merged_font[table_tag]
+            
+    # Remove format 14 cmap subtables (Unicode Variation Sequences)
+    # as they are likely invalid after glyph pruning/renaming
+    if 'cmap' in merged_font:
+        cmap_table = merged_font['cmap']
+        new_tables = []
+        for subtable in cmap_table.tables:
+            if subtable.format == 14:
+                print("Removing cmap format 14 subtable...")
+                continue
+            new_tables.append(subtable)
+        cmap_table.tables = new_tables
 
     # Prune unused glyphs to free up space (especially if base font is full)
     if 'glyf' in merged_font:
