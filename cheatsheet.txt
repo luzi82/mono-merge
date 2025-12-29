@@ -1,10 +1,81 @@
-
-
-
 # get python path
 (Get-Command python).Source
 
+===
+
+.venv\Scripts\python.exe ttf/dump_char_csv.py input\Inconsolata-Regular.ttf output\Inconsolata-Regular.char.csv
+.venv\Scripts\python.exe ttf/dump_char_csv.py input\NotoSansMonoCJKhk-VF.ttf output\NotoSansMonoCJKhk-VF.char.csv
+
+.venv\Scripts\python.exe ttf\filter_char_csv.py output\Inconsolata-Regular.char.csv  ascii output\Inconsolata-Regular.ascii.csv
+.venv\Scripts\python.exe ttf\filter_char_csv.py output\NotoSansMonoCJKhk-VF.char.csv cjk   output\NotoSansMonoCJKhk-VF.cjk.csv
+
+.venv\Scripts\python.exe ttf\list_extreme_y.py output\Inconsolata-Regular.ascii.csv output\Inconsolata-Regular.ascii.extremey.csv
+.venv\Scripts\python.exe ttf\list_extreme_y.py output\NotoSansMonoCJKhk-VF.cjk.csv  output\NotoSansMonoCJKhk-VF.cjk.extremey.csv
+
+.venv\Scripts\python.exe ttf/cal_shift_y.py output/Inconsolata-Regular.ascii.extremey.csv output/NotoSansMonoCJKhk-VF.cjk.extremey.csv output/shift.yaml
+
+.venv\Scripts\python.exe ttf/font_shift_y.py input/NotoSansMonoCJKhk-VF.ttf output/shift.yaml output/cjk.ttf
+
+.venv\Scripts\python.exe ttf/dump_char_csv.py output/cjk.ttf output/cjk.char.csv
+
+.venv\Scripts\python.exe ttf/pick_font.py output\Inconsolata-Regular.char.csv output/cjk.char.csv output/pick.char.csv
+
+.venv\Scripts\python.exe ttf/cal_meta.py output\Inconsolata-Regular.ascii.csv output/pick.meta.yaml
+
+.venv\Scripts\python.exe ttf/merge_font.py input\Inconsolata-Regular.ttf output\cjk.ttf output\pick.char.csv output\pick.meta.yaml --output output\test.ttf
+.venv\Scripts\python.exe ttf/dump_char_csv.py output\test.ttf output\test.char.csv
+.venv\Scripts\python.exe font_preview.py output\test.ttf "你好嗎 123" output/test --debug
+
+===
 
 python monomerge.py -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf --cjk-y-offset=-81 -o output/test.ttf
 
 python font_preview.py output/test.ttf "你好嗎 123" output/test --debug
+
+==
+
+python find_extreme_y.py --ascii input/Inconsolata-Regular.ttf
+# jy() -174.0 735.0
+
+python find_extreme_y.py --cjk input/NotoSansMonoCJKhk-Regular.otf
+# 퓠宺 -107.0 827.0
+
+python monomerge.py -l input/Inconsolata-Regular.ttf -c input/NotoSansMonoCJKhk-Regular.otf -o output/test.ttf
+python font_preview.py output/test.ttf "jy()퓠宺" output/test --debug
+
+===
+
+create a new python main script ttf/cal_meta.py
+
+* args:
+  * input_font_csv: a csv file created by ttf\dump_char_csv.py, take output\Inconsolata-Regular.ascii.csv as example
+  * output_yaml: a yaml file contains the calculated meta data
+* output yaml:
+  * half_advance_width: the advance_width of common half width char
+  * full_advance_width: the advance_width of full width char, must be half_advance_width * 2
+  * min_yMin / max_yMax
+  * char_height: max_yMax-min_yMin
+  * font_height: char_height*1.2
+  * ascender / descender: based on font_height, min_yMin, max_yMax.  ascender extend 60%, descender extend 40%.
+
+===
+
+create a new python main script ttf/merge_font.py
+
+* args:
+  * input_base_ttf: a input base ttf file, e.g. input\Inconsolata-Regular.ttf
+  * input_new_ttf: a input ttf file to merge, e.g. output\cjk.ttf
+  * input_pick_csv: a csv file created by ttf\pick_font.py, take output\pick.char.csv as example
+  * input_meta_yaml: a yaml file created by ttf\cal_meta.py, take output\pick.meta.yaml as example
+  * font_name: the name of the font
+    * if not given, use test{yyyymmddhhmmss}
+  * output_ttf: the output ttf file
+    * if not given, use output/test{yyyymmddhhmmss}.ttf
+* create a new ttf file output_ttf, combine both input_base_ttf and input_new_ttf
+* input_pick_csv pick column state which font to be used on the char
+* for is_full_width is true, advance width should be full_advance_width in input_meta_yaml, otherwise half_advance_width
+* mark the font as monospace, take monomerge.py as reference.
+* ascender and descender follow input_meta_yaml
+* remove all unnecessary meta data in the font file which is not related to font rendering.
+* version is {yyyymmddhhmmss}
+* for all remaining meta data which are description, just put "created by MonoMerge"
