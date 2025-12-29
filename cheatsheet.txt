@@ -1,0 +1,7 @@
+
+
+
+# get python path
+(Get-Command python).Source
+
+
