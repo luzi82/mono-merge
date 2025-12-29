@@ -46,6 +46,9 @@ When an OTF (CFF-based) font is used as the CJK source:
 ### Python Scripts
 - For Python executable main scripts, must use `argparse` instead of `sys.argv` for command-line argument parsing
 
+### Environment
+- Always use the Python environment in `.venv` when running scripts.
+
 ## Use Cases
 
 - Creating custom monospace fonts for multilingual development
