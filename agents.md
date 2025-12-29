@@ -49,6 +49,9 @@ When an OTF (CFF-based) font is used as the CJK source:
 ### Environment
 - Always use the Python environment in `.venv` when running scripts.
 
+### Version Control
+- Version control of `cheatsheet.txt` will be managed by human. Do not manage its version control unless requested.
+
 ## Use Cases
 
 - Creating custom monospace fonts for multilingual development
