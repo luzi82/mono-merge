@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Merge two TTF font files based on a pick CSV file and metadata YAML.
-Creates a new monospace font by combining glyphs from base and new fonts.
+Merge multiple TTF font files based on a pick CSV file and metadata YAML.
+Creates a new monospace font by combining glyphs from base and multiple source fonts.
 """
 
 import argparse
@@ -14,23 +14,27 @@ from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_a_s_p import table__g_a_s_p, GASP_SYMMETRIC_GRIDFIT, GASP_SYMMETRIC_SMOOTHING, GASP_DOGRAY, GASP_GRIDFIT
 
 
-def merge_fonts(input_base_ttf, input_new_ttf, input_pick_csv, input_meta_yaml, output_ttf, font_name):
+def merge_fonts(input_base_ttf, input_ttf_list, input_pick_csv, input_meta_yaml, output_ttf, font_name, vendor_id):
     """
-    Merge two TTF fonts based on pick CSV and metadata YAML.
+    Merge multiple TTF fonts based on pick CSV and metadata YAML.
     
     Args:
         input_base_ttf: Path to base TTF font file
-        input_new_ttf: Path to new TTF font file to merge
+        input_ttf_list: List of paths to TTF font files to merge
         input_pick_csv: Path to pick CSV file (from pick_font.py)
         input_meta_yaml: Path to metadata YAML file (from cal_meta.py)
         output_ttf: Path for output merged TTF file
         font_name: Name for the output font
+        vendor_id: OS/2 vendor ID (4 characters)
     """
     print(f"Loading base font: {input_base_ttf}")
     base_font = TTFont(input_base_ttf)
     
-    print(f"Loading new font: {input_new_ttf}")
-    new_font = TTFont(input_new_ttf)
+    # Load all source fonts
+    source_fonts = []
+    for font_path in input_ttf_list:
+        print(f"Loading source font: {font_path}")
+        source_fonts.append(TTFont(font_path))
     
     print(f"Loading pick CSV: {input_pick_csv}")
     with open(input_pick_csv, 'r', encoding='utf-8') as f:
@@ -58,33 +62,36 @@ def merge_fonts(input_base_ttf, input_new_ttf, input_pick_csv, input_meta_yaml, 
         if table_tag in base_font:
             merged_font[table_tag] = base_font[table_tag]
 
-    # Merge OS/2 code page and unicode ranges from new font to ensure CJK compatibility
-    if 'OS/2' in merged_font and 'OS/2' in new_font:
+    # Merge OS/2 code page and unicode ranges from all source fonts to ensure compatibility
+    if 'OS/2' in merged_font:
         print("Merging OS/2 CodePage and Unicode ranges...")
         base_os2 = merged_font['OS/2']
-        new_os2 = new_font['OS/2']
         
         # Helper to merge attributes safely
-        def merge_attr(attr):
-            if hasattr(base_os2, attr) and hasattr(new_os2, attr):
+        def merge_attr(attr, src_os2):
+            if hasattr(base_os2, attr) and hasattr(src_os2, attr):
                 val_base = getattr(base_os2, attr)
-                val_new = getattr(new_os2, attr)
-                setattr(base_os2, attr, val_base | val_new)
+                val_src = getattr(src_os2, attr)
+                setattr(base_os2, attr, val_base | val_src)
         
-        merge_attr('ulCodePageRange1')
-        merge_attr('ulCodePageRange2')
-        merge_attr('ulUnicodeRange1')
-        merge_attr('ulUnicodeRange2')
-        merge_attr('ulUnicodeRange3')
-        merge_attr('ulUnicodeRange4')
+        for src_font in source_fonts:
+            if 'OS/2' in src_font:
+                src_os2 = src_font['OS/2']
+                merge_attr('ulCodePageRange1', src_os2)
+                merge_attr('ulCodePageRange2', src_os2)
+                merge_attr('ulUnicodeRange1', src_os2)
+                merge_attr('ulUnicodeRange2', src_os2)
+                merge_attr('ulUnicodeRange3', src_os2)
+                merge_attr('ulUnicodeRange4', src_os2)
     
-    # Get cmap and hmtx for both fonts
+    # Get cmap, hmtx, and glyf for base font and all source fonts
     base_cmap = base_font.getBestCmap()
-    new_cmap = new_font.getBestCmap()
     base_hmtx = base_font['hmtx']
-    new_hmtx = new_font['hmtx']
     base_glyf = base_font['glyf']
-    new_glyf = new_font['glyf']
+    
+    source_cmaps = [font.getBestCmap() for font in source_fonts]
+    source_hmtxs = [font['hmtx'] for font in source_fonts]
+    source_glyfs = [font['glyf'] for font in source_fonts]
     
     # Build merged glyph data
     merged_glyphs = {}
@@ -125,33 +132,32 @@ def merge_fonts(input_base_ttf, input_new_ttf, input_pick_csv, input_meta_yaml, 
                 copy_glyph_recursive(comp_glyph_name, source_glyf, source_hmtx, target_width)
     
     print("Processing glyphs based on pick CSV...")
-    count_base = 0
-    count_new = 0
+    pick_counts = [0] * len(source_fonts)  # Track how many glyphs from each source
     
     for codepoint, pick_row in pick_data.items():
-        pick_source = pick_row.get('pick', 'base')
+        pick_index_str = pick_row.get('pick', '0')
+        try:
+            pick_index = int(pick_index_str)
+        except (ValueError, TypeError):
+            pick_index = 0
+        
         is_full_width = pick_row.get('is_full_width', 'False') == 'True'
         
         # Determine target advance width
         target_width = full_advance_width if is_full_width else half_advance_width
         
-        # Get glyph name for this codepoint
+        # Get glyph name for this codepoint from the selected source
         glyph_name = None
         source_glyf = None
         source_hmtx = None
         
-        if pick_source == 'base':
-            if codepoint in base_cmap:
-                glyph_name = base_cmap[codepoint]
-                source_glyf = base_glyf
-                source_hmtx = base_hmtx
-                count_base += 1
-        else:  # pick_source == 'new'
-            if codepoint in new_cmap:
-                glyph_name = new_cmap[codepoint]
-                source_glyf = new_glyf
-                source_hmtx = new_hmtx
-                count_new += 1
+        if 0 <= pick_index < len(source_fonts):
+            source_cmap = source_cmaps[pick_index]
+            if codepoint in source_cmap:
+                glyph_name = source_cmap[codepoint]
+                source_glyf = source_glyfs[pick_index]
+                source_hmtx = source_hmtxs[pick_index]
+                pick_counts[pick_index] += 1
         
         if glyph_name and glyph_name in source_glyf:
             # Skip if already copied
@@ -178,7 +184,10 @@ def merge_fonts(input_base_ttf, input_new_ttf, input_pick_csv, input_meta_yaml, 
             # Track codepoint to glyph mapping for cmap
             codepoint_to_glyph[codepoint] = glyph_name
     
-    print(f"Merged {count_base} glyphs from base font, {count_new} glyphs from new font")
+    # Print statistics
+    print(f"Merged glyphs from {len(source_fonts)} source font(s):")
+    for i, count in enumerate(pick_counts):
+        print(f"  Source {i}: {count} glyphs")
     
     # Create and populate glyf table
     from fontTools.ttLib.tables._g_l_y_f import table__g_l_y_f
@@ -331,6 +340,9 @@ def merge_fonts(input_base_ttf, input_new_ttf, input_pick_csv, input_meta_yaml, 
         merged_font['OS/2'].sTypoDescender = descender
         merged_font['OS/2'].usWinAscent = ascender
         merged_font['OS/2'].usWinDescent = abs(descender)
+        
+        # Set vendor ID
+        merged_font['OS/2'].achVendID = vendor_id[:4].ljust(4)  # Must be exactly 4 chars
     
     # Mark font as monospace/fixed-pitch
     print("Marking font as monospace...")
@@ -366,12 +378,12 @@ def main():
     default_output = f"output/test{today}.ttf"
     
     parser = argparse.ArgumentParser(
-        description='Merge two TTF fonts based on pick CSV and metadata YAML',
+        description='Merge multiple TTF fonts based on pick CSV and metadata YAML',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s input/Inconsolata-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
-  %(prog)s input/Inconsolata-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml -n MyFont -o output/myfont.ttf
+  %(prog)s input/Inconsolata-Regular.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
+  %(prog)s input/Inconsolata-Regular.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml -n MyFont -o output/myfont.ttf --vendor-id MYFN
         """
     )
     
@@ -381,8 +393,8 @@ Examples:
     )
     
     parser.add_argument(
-        'input_new_ttf',
-        help='New TTF font file to merge (e.g., output/cjk.ttf)'
+        'input_ttf_list',
+        help='Comma-separated list of TTF font files to merge (e.g., input/Inconsolata-Regular.ttf,output/cjk.ttf)'
     )
     
     parser.add_argument(
@@ -393,6 +405,13 @@ Examples:
     parser.add_argument(
         'input_meta_yaml',
         help='Metadata YAML file from cal_meta.py (e.g., output/pick.meta.yaml)'
+    )
+    
+    parser.add_argument(
+        '--vendor-id',
+        type=str,
+        default='MOME',
+        help='OS/2 vendor ID (4 characters, default: MOME)'
     )
     
     parser.add_argument(
@@ -409,6 +428,9 @@ Examples:
     
     args = parser.parse_args()
     
+    # Parse TTF list
+    ttf_list = [path.strip() for path in args.input_ttf_list.split(',')]
+    
     # Determine font name
     font_name = args.name if args.name else default_font_name
     
@@ -416,7 +438,16 @@ Examples:
     output_ttf = args.output if args.output else default_output
     
     # Validate input files
-    for path in [args.input_base_ttf, args.input_new_ttf, args.input_pick_csv, args.input_meta_yaml]:
+    if not Path(args.input_base_ttf).exists():
+        print(f"Error: Base font not found: {args.input_base_ttf}", file=sys.stderr)
+        return 1
+    
+    for font_path in ttf_list:
+        if not Path(font_path).exists():
+            print(f"Error: Input font not found: {font_path}", file=sys.stderr)
+            return 1
+    
+    for path in [args.input_pick_csv, args.input_meta_yaml]:
         if not Path(path).exists():
             print(f"Error: Input file not found: {path}", file=sys.stderr)
             return 1
@@ -428,11 +459,12 @@ Examples:
     try:
         merge_fonts(
             args.input_base_ttf,
-            args.input_new_ttf,
+            ttf_list,
             args.input_pick_csv,
             args.input_meta_yaml,
             output_ttf,
-            font_name
+            font_name,
+            args.vendor_id
         )
         return 0
     except Exception as e:
