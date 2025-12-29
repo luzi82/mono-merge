@@ -14,6 +14,8 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib.tables._g_a_s_p import table__g_a_s_p, GASP_SYMMETRIC_GRIDFIT, GASP_SYMMETRIC_SMOOTHING, GASP_DOGRAY, GASP_GRIDFIT
 
+from utils import is_ascii_char
+
 
 def get_font_metrics(font):
     """
@@ -187,18 +189,13 @@ def get_glyph_bounds_extremes(font):
     y_min = float('inf')
     y_max = float('-inf')
     
-    # Use only ASCII characters for line height calculation
-    # ASCII: 0x0000-0x007F
-    def is_relevant_char(codepoint):
-        return 0x0000 <= codepoint <= 0x007F  # ASCII only
-    
     processed_count = 0
     extreme_glyphs = []  # Track glyphs with extreme bounds for debugging
     
-    # Iterate through mapped glyphs, filtering for ASCII and CJK
+    # Iterate through mapped glyphs, filtering for ASCII only
     for codepoint, glyph_name in cmap.items():
-        # Skip characters outside our target ranges
-        if not is_relevant_char(codepoint):
+        # Skip characters outside ASCII range (0x0000-0x007F)
+        if not is_ascii_char(codepoint):
             continue
         
         if glyph_name not in glyf_table:
@@ -757,6 +754,9 @@ Examples:
     # Determine font name (for internal font metadata)
     if args.name:
         font_name = args.name
+        # Replace DATETIME in font name with current timestamp
+        if "DATETIME" in font_name:
+            font_name = font_name.replace("DATETIME", today)
     else:
         font_name = f"mono {today}"
     
