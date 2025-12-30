@@ -396,6 +396,15 @@ Example:
     
     args = parser.parse_args()
     
+    # Validate vendor ID format
+    if len(args.vendor_id) != 4:
+        print(f"Error: Vendor ID must be exactly 4 characters, got: '{args.vendor_id}' ({len(args.vendor_id)} chars)", file=sys.stderr)
+        sys.exit(1)
+    
+    if not args.vendor_id.isascii():
+        print(f"Error: Vendor ID must contain only ASCII characters, got: '{args.vendor_id}'", file=sys.stderr)
+        sys.exit(1)
+    
     # Parse input font list
     ttf_paths = [p.strip() for p in args.input_ttf_list.split(',')]
     
