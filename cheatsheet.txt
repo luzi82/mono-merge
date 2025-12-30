@@ -6,70 +6,49 @@
 
 ===
 
-python ttf/dump_data_yaml.py input/NotoSansMonoCJKhk-VF.ttf output/NotoSansMonoCJKhk-VF.data.yaml
-python ttf/dump_data_yaml.py output/CodeCJK002_20251229000015.ttf output/CodeCJK002_20251229000015.data.yaml
+python ttf/scale_ttf.py input\NotoSansMonoCJKhk-VF.ttf input\JetBrainsMonoNL-Regular.ttf output/cjk0.ttf
+
+python ttf/dump_data_yaml.py output/cjk0.ttf output/cjk0.data.yaml
 
 python ttf/dump_char_csv.py input/JetBrainsMonoNL-Regular.ttf output/JetBrainsMonoNL-Regular.char.csv
-python ttf/dump_char_csv.py input/NotoSansMonoCJKhk-VF.ttf output/NotoSansMonoCJKhk-VF.char.csv
+python ttf/dump_char_csv.py output/cjk0.ttf output/cjk0.char.csv
 
 python ttf/filter_char_csv.py output/JetBrainsMonoNL-Regular.char.csv  ascii output/JetBrainsMonoNL-Regular.ascii.csv
 python ttf/filter_char_csv.py output/JetBrainsMonoNL-Regular.char.csv  upper,number output/JetBrainsMonoNL-Regular.big.csv
-python ttf/filter_char_csv.py output/NotoSansMonoCJKhk-VF.char.csv common_cjk output/NotoSansMonoCJKhk-VF.ccjk.csv
+python ttf/filter_char_csv.py output/cjk0.char.csv common_cjk output/cjk0.ccjk.csv
 
 python ttf/list_extreme_y.py output/JetBrainsMonoNL-Regular.ascii.csv output/JetBrainsMonoNL-Regular.ascii.extremey.csv
-python ttf/list_extreme_y.py output/NotoSansMonoCJKhk-VF.cjk.csv  output/NotoSansMonoCJKhk-VF.cjk.extremey.csv
+python ttf/list_extreme_y.py output/cjk0.ccjk.csv  output/cjk0.ccjk.extremey.csv
 
-# $@g宺ざ퓠퀐
+# $@g宺涄
 
-python ttf/cal_shift_y.py output/JetBrainsMonoNL-Regular.big.csv output/NotoSansMonoCJKhk-VF.ccjk.csv output/shift.yaml
+python ttf/cal_shift_y.py output/JetBrainsMonoNL-Regular.big.csv output/cjk0.ccjk.csv output/shift.yaml
 
-python ttf/font_shift_y.py input/NotoSansMonoCJKhk-VF.ttf output/shift.yaml output/cjk.ttf
+python ttf/font_shift_y.py output/cjk0.ttf output/shift.yaml output/cjk1.ttf
 
-python ttf/dump_char_csv.py output/cjk.ttf output/cjk.char.csv
+python ttf/dump_char_csv.py output/cjk1.ttf output/cjk1.char.csv
 
-python ttf/pick_font.py output/JetBrainsMonoNL-Regular.char.csv,output/cjk.char.csv output/pick.char.csv
+python ttf/pick_font.py output/JetBrainsMonoNL-Regular.char.csv,output/cjk1.char.csv output/pick.char.csv
 
 python ttf/cal_meta.py output/JetBrainsMonoNL-Regular.ascii.csv output/JetBrainsMonoNL-Regular.big.csv output/pick.meta.yaml
 
-# python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
+# python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
+python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 
 python ttf/dump_data_yaml.py output/test.ttf output/test.data.yaml
 
-python font_preview.py output/test.ttf "$@g宺ざ퓠퀐" output/test --debug
-python font_preview.py output/test.ttf "你好 0O1Il| ()jy宺ざ퓠퀐" output/test --debug
-python font_preview.py output/test.ttf "你好 0O1Il| ()jy宺ざ퓠퀐" output/test
+python font_preview.py output/test.ttf "$@g宺涄" output/test --debug
+python font_preview.py output/test.ttf "你好 0O1Il| $@g宺涄" output/test --debug
+python font_preview.py output/test.ttf "你好 0O1Il| $@g宺涄" output/test
 
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
-
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
-
-python ttf/csv_compare_box.py output\pick.char.csv output\test.char.csv
-
+python ttf/dump_char_csv.py output/test.ttf output\test.char.csv
 python ttf/csv_compare_box.py output\pick.char.csv output\test.char.csv
 
 python ttf/check_mono_width.py output\test.ttf
 
 ===
 
-python monomerge.py -l input/consola.ttf -c input/NotoSansMonoCJKhk-Regular.otf --cjk-y-offset=-81 -o output/test.ttf
-
-python font_preview.py output/test.ttf "你好嗎 123" output/test --debug
-
-==
-
-python find_extreme_y.py --ascii input/JetBrainsMonoNL-Regular.ttf
-# jy() -174.0 735.0
-
-python find_extreme_y.py --cjk input/NotoSansMonoCJKhk-Regular.otf
-# 퓠宺 -107.0 827.0
-
-python monomerge.py -l input/JetBrainsMonoNL-Regular.ttf -c input/NotoSansMonoCJKhk-Regular.otf -o output/test.ttf
-python font_preview.py output/test.ttf "jy()퓠宺" output/test --debug
-
-===
-
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --vendor-id LUZI --font-name CodeCJK003 --output output/CodeCJK003_DATETIME.ttf
+python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --vendor-id LUZI --font-name CodeCJK004 --output output/CodeCJK004_DATETIME.ttf
 
 ===
 
@@ -91,7 +70,7 @@ create a new python main script ttf/cal_meta.py
 Create main script ttf/merge_font.py
 
 * args:
-  * input_ttf_list: a input ttf file list, seperated by comma, e.g. input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf
+  * input_ttf_list: a input ttf file list, seperated by comma, e.g. input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf
   * input_pick_csv: a csv file created by ttf/pick_font.py, take output/pick.char.csv as example
   * input_meta_yaml: a yaml file created by ttf/cal_meta.py, take output/pick.meta.yaml as example
   * vendor_id: os/2 vendor id
@@ -127,7 +106,7 @@ python ttf/dump_data_yaml.py output/test.ttf output/test.data.yaml
 
 Created a new font using:
 
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
+python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 
 But in dp4 font viewer, the advance of full width char are half width, not full width.
 
@@ -162,7 +141,7 @@ I guess there is some meta data from input/NotoSansMonoCJKhk-Regular.otf which m
 
 Change ttf/pick_font.py:
 * args:
-  * input_csv_list: list of input font csv, seperated by comma, generated by dump_char_csv.py. e.g "output/JetBrainsMonoNL-Regular.char.csv,output/cjk.char.csv"
+  * input_csv_list: list of input font csv, seperated by comma, generated by dump_char_csv.py. e.g "output/JetBrainsMonoNL-Regular.char.csv,output/cjk1.char.csv"
   * output_csv: no Change
 * logic: for all char data in each csv:
   * if char exist in first csv, and (advance_width>0), and not is_empty_glyph. if yes, pick first csv as the char font
@@ -190,13 +169,13 @@ python ttf/remove_table.py output/CodeCJK002_20251229000015.ttf output/tmp.ttf
 
 A font file is generated by following command
 
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
+python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 
 The bound of each char is extract from following command
 
 python ttf/dump_char_csv.py output/test.ttf output/test.char.csv
 
-it show that the bar char (U+007C) is from output/cjk.ttf, but it should be from input/JetBrainsMonoNL-Regular.ttf
+it show that the bar char (U+007C) is from output/cjk1.ttf, but it should be from input/JetBrainsMonoNL-Regular.ttf
 
 ===
 
@@ -206,3 +185,21 @@ Create a script csv_compare_box.py to compare two csv
   * input_csv_0, input_csv_1: the csv to compare, take output\test.char.csv as example
 * for each codepoint_dec, compare the advance_width,lsb,xMin,yMin,xMax,yMax,width,height,is_full_width,is_empty_glyph,is_composite,num_contours values
 * print out if not match
+
+===
+
+Create a script ttf/scale_ttf.py
+
+* args
+  * input_scale_ttf: the ttf to be scaled, e.g. input\NotoSansMonoCJKhk-VF.ttf
+  * input_target_ttf: the ttf to be matched, e.g. input\JetBrainsMonoNL-Regular.ttf
+  * output_ttf: the scaled ttf
+* get the advance width of char O from input_scale_ttf, input_target_ttf
+  * if the width match, just copy input_scale_ttf to output_ttf
+  * other wise, scale the input_scale_ttf to match input_target_ttf
+* advance width should be scaled
+* all glyph should be scaled
+* Hinting should be scaled
+* units_per_em should NOT be scaled
+* All other coordinate should be scaled
+* the center of scaling should be 0,0
