@@ -12,7 +12,7 @@ import yaml
 def calculate_base_anchor_y(csv_file):
     """
     Calculate the anchor y value for the base font from a CSV file.
-    Anchor y is at avg(yMax) / 2.
+    Anchor y is at max(yMax) / 2.
     
     Args:
         csv_file: Path to the CSV file
@@ -35,9 +35,9 @@ def calculate_base_anchor_y(csv_file):
     if not ymax_values:
         raise ValueError(f"No valid glyphs found in {csv_file}")
     
-    # Calculate anchor y as avg(yMax) / 2
-    avg_ymax = sum(ymax_values) / len(ymax_values)
-    anchor_y = avg_ymax / 2
+    # Calculate anchor y as max(yMax) / 2
+    max_ymax = max(ymax_values)
+    anchor_y = max_ymax / 2
     
     return anchor_y
 
@@ -45,7 +45,7 @@ def calculate_base_anchor_y(csv_file):
 def calculate_shift_anchor_y(csv_file):
     """
     Calculate the anchor y value for the shift font from a CSV file.
-    Anchor y is at (avg(yMax) + avg(yMin)) / 2.
+    Anchor y is at (99th percentile yMax + 1st percentile yMin) / 2.
     
     Args:
         csv_file: Path to the CSV file
@@ -71,10 +71,21 @@ def calculate_shift_anchor_y(csv_file):
     if not ymin_values or not ymax_values:
         raise ValueError(f"No valid glyphs found in {csv_file}")
     
-    # Calculate anchor y as (avg(yMax) + avg(yMin)) / 2
-    avg_ymax = sum(ymax_values) / len(ymax_values)
-    avg_ymin = sum(ymin_values) / len(ymin_values)
-    anchor_y = (avg_ymax + avg_ymin) / 2
+    # Calculate anchor y using 99th percentile yMax and 1st percentile yMin
+    ymax_sorted = sorted(ymax_values)
+    ymin_sorted = sorted(ymin_values)
+    
+    # Get 99th percentile of yMax (99% highest)
+    p99_idx = int(len(ymax_sorted) * 0.99)
+    if p99_idx >= len(ymax_sorted):
+        p99_idx = len(ymax_sorted) - 1
+    p99_ymax = ymax_sorted[p99_idx]
+    
+    # Get 1st percentile of yMin (99% lowest)
+    p01_idx = int(len(ymin_sorted) * 0.01)
+    p01_ymin = ymin_sorted[p01_idx]
+    
+    anchor_y = (p99_ymax + p01_ymin) / 2
     
     return anchor_y
 
@@ -82,8 +93,8 @@ def calculate_shift_anchor_y(csv_file):
 def calculate_shift_y(base_csv, shift_csv):
     """
     Calculate the y-shift needed for shift_csv to match base_csv's anchor y.
-    Base anchor: avg(yMax) / 2
-    Shift anchor: (avg(yMax) + avg(yMin)) / 2
+    Base anchor: max(yMax) / 2
+    Shift anchor: (99th percentile yMax + 1st percentile yMin) / 2
     
     Args:
         base_csv: Path to the base CSV file
