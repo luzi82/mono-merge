@@ -48,7 +48,9 @@ python ttf/check_mono_width.py output\test.ttf
 
 ===
 
-python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --vendor-id LUZI --font-name CodeCJK004 --output output/CodeCJK004_DATETIME.ttf
+python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --input-info-meta-yaml CodeCJK/codecjk_meta.yaml --font-name CodeCJK004 --output output/CodeCJK004_DATETIME.ttf
+
+python ttf/dump_data_yaml.py output/CodeCJK004_20251230164529.ttf output/CodeCJK004_20251230164529.data.yaml
 
 ===
 
