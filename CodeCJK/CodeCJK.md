@@ -4,7 +4,7 @@
 
 ## 特點
 
-中あ강A1 1Il| 0O
+![Font debug](debug_clip.png)
 
 * 支援中日韓字元。
 * 字距等寛，Monospace。
@@ -32,12 +32,14 @@
 
 ## 下載
 
-TBA
+[CodeCJK004](https://www.dropbox.com/scl/fo/d5k6lswmoa31vuvgooshe/AEa-e7DcBrXNyI5zDMiW3KI?rlkey=5c1ftf6xpk7n0apns5xw500zn&st=61aq0pv6&dl=0)
 
-## How to create the ttf file?
+## 如何製造 CodeCJK 字型檔
 
-TBA
+```bash
+CodeCJK/build.sh
+```
 
 ## 其他
 
-* CodeCJK 是字型 **檔** ，而 **不** 是字型。因為它只是直接使用坊間既有的字型，而沒有設計自己的字型。
+* CodeCJK *是字型檔，不是字型*。因為它只是直接使用坊間既有的字型，而沒有設計自己的字型。
