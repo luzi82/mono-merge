@@ -30,7 +30,7 @@ python ttf/dump_char_csv.py output/cjk1.ttf output/cjk1.char.csv
 
 python ttf/pick_font.py output/JetBrainsMonoNL-Regular.char.csv,output/cjk1.char.csv output/pick.char.csv
 
-python ttf/cal_meta.py output/JetBrainsMonoNL-Regular.ascii.csv output/JetBrainsMonoNL-Regular.big.csv output/pick.meta.yaml
+python ttf/cal_meta.py output/JetBrainsMonoNL-Regular.ascii.csv output/JetBrainsMonoNL-Regular.big.csv --height-multiplier 1.3 output/pick.meta.yaml
 
 # python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 python ttf/merge_font.py input/JetBrainsMonoNL-Regular.ttf,output/cjk1.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
