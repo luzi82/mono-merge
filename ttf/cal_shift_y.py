@@ -9,16 +9,49 @@ import math
 import yaml
 
 
-def calculate_mid_y(csv_file):
+def calculate_base_anchor_y(csv_file):
     """
-    Calculate the alignment y value from a CSV file.
-    Alignment y is at the lower 40% position of the font's y range.
+    Calculate the anchor y value for the base font from a CSV file.
+    Anchor y is at avg(yMax) / 2.
     
     Args:
         csv_file: Path to the CSV file
         
     Returns:
-        The alignment y value as a float
+        The anchor y value as a float
+    """
+    ymax_values = []
+    
+    with open(csv_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Skip empty glyphs
+            if row.get('is_empty_glyph', 'False') == 'True':
+                continue
+            
+            ymax = float(row['yMax'])
+            ymax_values.append(ymax)
+    
+    if not ymax_values:
+        raise ValueError(f"No valid glyphs found in {csv_file}")
+    
+    # Calculate anchor y as avg(yMax) / 2
+    avg_ymax = sum(ymax_values) / len(ymax_values)
+    anchor_y = avg_ymax / 2
+    
+    return anchor_y
+
+
+def calculate_shift_anchor_y(csv_file):
+    """
+    Calculate the anchor y value for the shift font from a CSV file.
+    Anchor y is at (avg(yMax) + avg(yMin)) / 2.
+    
+    Args:
+        csv_file: Path to the CSV file
+        
+    Returns:
+        The anchor y value as a float
     """
     ymin_values = []
     ymax_values = []
@@ -38,17 +71,19 @@ def calculate_mid_y(csv_file):
     if not ymin_values or not ymax_values:
         raise ValueError(f"No valid glyphs found in {csv_file}")
     
-    # Calculate the alignment y at the lower 40% position
-    overall_ymin = min(ymin_values)
-    overall_ymax = max(ymax_values)
-    mid_y = overall_ymin + 0.4 * (overall_ymax - overall_ymin)
+    # Calculate anchor y as (avg(yMax) + avg(yMin)) / 2
+    avg_ymax = sum(ymax_values) / len(ymax_values)
+    avg_ymin = sum(ymin_values) / len(ymin_values)
+    anchor_y = (avg_ymax + avg_ymin) / 2
     
-    return mid_y
+    return anchor_y
 
 
 def calculate_shift_y(base_csv, shift_csv):
     """
-    Calculate the y-shift needed for shift_csv to match base_csv's alignment y (lower 40% position).
+    Calculate the y-shift needed for shift_csv to match base_csv's anchor y.
+    Base anchor: avg(yMax) / 2
+    Shift anchor: (avg(yMax) + avg(yMin)) / 2
     
     Args:
         base_csv: Path to the base CSV file
@@ -57,11 +92,14 @@ def calculate_shift_y(base_csv, shift_csv):
     Returns:
         The shift_y value (integer, truncated towards zero)
     """
-    base_mid_y = calculate_mid_y(base_csv)
-    shift_mid_y = calculate_mid_y(shift_csv)
+    base_anchor_y = calculate_base_anchor_y(base_csv)
+    shift_anchor_y = calculate_shift_anchor_y(shift_csv)
+    
+    print(f"Base anchor y: {base_anchor_y}")
+    print(f"Shift anchor y: {shift_anchor_y}")
     
     # Calculate the shift needed
-    shift_y = base_mid_y - shift_mid_y
+    shift_y = base_anchor_y - shift_anchor_y
     
     # Round to nearest integer, but if exactly at x.5, round towards zero
     fractional_part = abs(shift_y - math.trunc(shift_y))
@@ -75,7 +113,7 @@ def calculate_shift_y(base_csv, shift_csv):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Calculate the y-shift value to align two fonts at their lower 40% y position.'
+        description='Calculate the y-shift value to align two fonts at their anchor points.'
     )
     parser.add_argument(
         'input_base_csv',
