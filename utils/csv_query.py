@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+import argparse
+import csv
+import sys
+
+def main():
+    parser = argparse.ArgumentParser(description="Query a value from a CSV file.")
+    parser.add_argument("input_csv", help="The CSV file to query")
+    parser.add_argument("search_column", help="The column to search")
+    parser.add_argument("search_value", help="The value to search")
+    parser.add_argument("pull_column", help="The column to pull out")
+
+    args = parser.parse_args()
+
+    try:
+        with open(args.input_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            
+            # Check if file is empty or couldn't read header
+            if reader.fieldnames is None:
+                # This might happen if the file is completely empty
+                sys.exit(1)
+
+            if args.search_column not in reader.fieldnames:
+                sys.exit(1)
+            
+            if args.pull_column not in reader.fieldnames:
+                sys.exit(1)
+
+            found = False
+            for row in reader:
+                if row[args.search_column] == args.search_value:
+                    print(row[args.pull_column])
+                    found = True
+                    break
+            
+            if not found:
+                sys.exit(1)
+
+    except Exception:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
