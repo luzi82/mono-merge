@@ -209,3 +209,32 @@ Create a script ttf/scale_ttf.py
 * units_per_em should NOT be scaled
 * All other coordinate should be scaled
 * the center of scaling should be 0,0
+
+===
+
+Create a script utils/csv_query.py
+* args
+  * input_csv: the csv to csv_query
+  * search_column: the column to search
+  * search_value: the value to search
+  * pull_column: the column to pull out
+* scan the csv, when there exist search_column = search_value, print out the value of pull_column
+* if search_column or pull_column not exist, exit 1
+* if value not find, exit 1
+
+===
+
+Create a script ttf/ttf_replace_meta.py
+* args
+  * input_ttf
+  * replace_from: the text replace from
+  * replace_to: the text replace to
+  * output_ttf
+* scan all meta data in the ttf, replace all replace_from to replace_to
+
+===
+
+Create a script ttf/ttf_unmono.py
+* args
+  * input_ttf, output_ttf
+* remove the monospace mark done in ttf/merge_font.py line 311
