@@ -314,6 +314,20 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
         # Recalculate Unicode ranges based on actual characters in cmap
         print("Recalculating Unicode ranges...")
         os2.recalcUnicodeRanges(merged_font)
+        
+        # Manually ensure CJK bit is set if we have CJK characters
+        # Bit 59 = CJK Unified Ideographs (U+4E00-U+9FFF)
+        # This is in ulUnicodeRange2 (bits 32-63), so bit (59-32) = bit 27
+        cmap = merged_font.getBestCmap()
+        if cmap:
+            has_cjk = any(0x4E00 <= cp <= 0x9FFF for cp in cmap.keys())
+            if has_cjk:
+                print("CJK characters detected, setting Unicode and CodePage ranges...")
+                os2.ulUnicodeRange2 |= (1 << 27)  # Set bit 59 (CJK Unified Ideographs)
+                # Set CodePage bits for Chinese support (helps Windows recognize the font)
+                os2.ulCodePageRange1 |= (1 << 17)  # Bit 17: Chinese: Traditional (Big5)
+                os2.ulCodePageRange1 |= (1 << 18)  # Bit 18: Chinese: Simplified (PRC and Singapore)
+                os2.ulCodePageRange1 |= (1 << 20)  # Bit 20: Chinese: Traditional (Taiwan)
     
     # Update hhea table
     if 'hhea' in merged_font:
