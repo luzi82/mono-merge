@@ -4,7 +4,6 @@ Shift all glyphs in a font vertically by a specified amount.
 """
 
 import argparse
-import yaml
 from fontTools.ttLib import TTFont
 
 
@@ -56,8 +55,9 @@ def main():
         help='Input TTF font file (e.g., input/NotoSansMonoCJKhk-VF.ttf)'
     )
     parser.add_argument(
-        'input_shift_yaml',
-        help='Input YAML file containing shift_y value (e.g., output/shift.yaml)'
+        'shift_y',
+        type=int,
+        help='Vertical shift amount in font units'
     )
     parser.add_argument(
         'output_ttf',
@@ -66,11 +66,7 @@ def main():
     
     args = parser.parse_args()
     
-    # Read shift_y value from YAML
-    with open(args.input_shift_yaml, 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-    
-    shift_y = config.get('shift_y', 0)
+    shift_y = args.shift_y
     
     print(f"Loading font: {args.input_ttf}")
     print(f"Applying shift_y: {shift_y}")
