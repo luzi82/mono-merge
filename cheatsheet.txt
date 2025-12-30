@@ -6,6 +6,10 @@
 
 ===
 
+python font_preview.py input/JetBrainsMonoNL-Regular.ttf "0O1Il|" output/JetBrainsMonoNL-Regular --debug
+
+===
+
 python ttf/scale_ttf.py input\NotoSansMonoCJKhk-VF.ttf input\JetBrainsMonoNL-Regular.ttf output/cjk0.ttf
 
 python ttf/dump_data_yaml.py output/cjk0.ttf output/cjk0.data.yaml
