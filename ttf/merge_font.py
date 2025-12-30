@@ -47,7 +47,7 @@ def load_meta_yaml(yaml_path):
         return yaml.safe_load(f)
 
 
-def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date, url_vendor=None, name_unique_id=None, license_text=None, copyright_text=None):
+def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date, url_vendor=None, name_unique_id=None, license_text=None, copyright_text=None, manufacturer_text=None, designer_text=None):
     """Create a new merged font from source fonts based on character picks."""
     
     # Use the first source font as the base template
@@ -288,8 +288,8 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
     set_name_all_platforms(4, full_name)  # Full name
     set_name_all_platforms(5, version_string)  # Version
     set_name_all_platforms(6, ps_name)  # PostScript name
-    set_name_all_platforms(8, metadata_text)  # Manufacturer
-    set_name_all_platforms(9, metadata_text)  # Designer
+    set_name_all_platforms(8, manufacturer_text if manufacturer_text else metadata_text)  # Manufacturer
+    set_name_all_platforms(9, designer_text if designer_text else metadata_text)  # Designer
     set_name_all_platforms(11, url_vendor if url_vendor else metadata_text)  # Vendor URL
     set_name_all_platforms(13, license_text if license_text else metadata_text)  # License
     
@@ -471,6 +471,8 @@ Example:
     name_unique_id = additional_meta.get('name_unique_id') if args.input_info_meta_yaml else None
     license_text = additional_meta.get('license') if args.input_info_meta_yaml else None
     copyright_text = additional_meta.get('copyright') if args.input_info_meta_yaml else None
+    manufacturer_text = additional_meta.get('manufacturer') if args.input_info_meta_yaml else None
+    designer_text = additional_meta.get('designer') if args.input_info_meta_yaml else None
     
     # Parse input font list
     ttf_paths = [p.strip() for p in args.input_ttf_list.split(',')]
@@ -529,7 +531,9 @@ Example:
         url_vendor,
         name_unique_id,
         license_text,
-        copyright_text
+        copyright_text,
+        manufacturer_text,
+        designer_text
     )
     
     # Save merged font
