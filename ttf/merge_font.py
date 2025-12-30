@@ -78,10 +78,14 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
     glyph_order = ['.notdef']  # .notdef must be first
     glyph_name_set = {'.notdef'}
     
+    # Track which glyph names came from which source font to prevent overwrites
+    glyph_name_to_source = {}  # Maps final glyph name to (source_index, original_name)
+    
     # First, add .notdef from base font
     if '.notdef' in base_font['glyf']:
         glyf_table.glyphs['.notdef'] = base_font['glyf']['.notdef']
         hmtx_table.metrics['.notdef'] = base_font['hmtx']['.notdef']
+        glyph_name_to_source['.notdef'] = (0, '.notdef')
     
     # Track components that need to be added
     components_to_add = set()
@@ -127,8 +131,21 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
         
         # Copy glyph from source font
         if glyph_name in source_font['glyf']:
-            # Copy glyph
-            glyf_table.glyphs[glyph_name] = source_font['glyf'][glyph_name]
+            # Check if this glyph name is already used by a different source font
+            final_glyph_name = glyph_name
+            if glyph_name in glyph_name_to_source:
+                existing_source, _ = glyph_name_to_source[glyph_name]
+                if existing_source != pick_index:
+                    # Name conflict - create a unique name
+                    final_glyph_name = f"{glyph_name}_src{pick_index}"
+                    counter = 1
+                    while final_glyph_name in glyph_name_set:
+                        final_glyph_name = f"{glyph_name}_src{pick_index}_{counter}"
+                        counter += 1
+                    print(f"  Renaming glyph '{glyph_name}' from source {pick_index} to '{final_glyph_name}' to avoid conflict")
+            
+            # Copy glyph with the final name
+            glyf_table.glyphs[final_glyph_name] = source_font['glyf'][glyph_name]
             
             # Set advance width based on full/half width
             if is_full_width:
@@ -145,22 +162,23 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
             except (KeyError, AttributeError):
                 original_lsb = 0
             
-            hmtx_table.metrics[glyph_name] = (advance_width, original_lsb)
+            hmtx_table.metrics[final_glyph_name] = (advance_width, original_lsb)
             
             # Add to glyph order if not already present
-            if glyph_name not in glyph_name_set:
-                glyph_order.append(glyph_name)
-                glyph_name_set.add(glyph_name)
+            if final_glyph_name not in glyph_name_set:
+                glyph_order.append(final_glyph_name)
+                glyph_name_set.add(final_glyph_name)
+                glyph_name_to_source[final_glyph_name] = (pick_index, glyph_name)
             
-            # Map character to glyph
+            # Map character to glyph (using final glyph name)
             if codepoint <= 0xFFFF:
                 # BMP characters go in both format 4 and format 12
-                cmap_subtable_4.cmap[codepoint] = glyph_name
+                cmap_subtable_4.cmap[codepoint] = final_glyph_name
             # All characters go in format 12
-            cmap_subtable_12.cmap[codepoint] = glyph_name
+            cmap_subtable_12.cmap[codepoint] = final_glyph_name
             
             # Check for composite glyph components
-            glyph = glyf_table.glyphs[glyph_name]
+            glyph = glyf_table.glyphs[final_glyph_name]
             if glyph.isComposite():
                 for component in glyph.components:
                     comp_name = component.glyphName
@@ -170,8 +188,13 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
     # Add component glyphs recursively
     while components_to_add:
         comp_name, source_index = components_to_add.pop()
-        if comp_name in glyph_name_set:
-            continue
+        
+        # Check if we already have this component from the same source
+        if comp_name in glyph_name_to_source:
+            existing_source, _ = glyph_name_to_source[comp_name]
+            if existing_source == source_index:
+                # Already have this glyph from the same source
+                continue
         
         # Ensure comp_name is a string
         if not isinstance(comp_name, str):
@@ -180,24 +203,39 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
         source_font = source_fonts[source_index]
         
         if comp_name in source_font['glyf']:
+            # Check for name conflict
+            final_comp_name = comp_name
+            if comp_name in glyph_name_to_source:
+                existing_source, _ = glyph_name_to_source[comp_name]
+                if existing_source != source_index:
+                    # Name conflict - create a unique name
+                    final_comp_name = f"{comp_name}_src{source_index}"
+                    counter = 1
+                    while final_comp_name in glyph_name_set:
+                        final_comp_name = f"{comp_name}_src{source_index}_{counter}"
+                        counter += 1
+                    print(f"  Renaming component '{comp_name}' from source {source_index} to '{final_comp_name}' to avoid conflict")
+            
             # Copy component glyph
-            glyf_table.glyphs[comp_name] = source_font['glyf'][comp_name]
+            glyf_table.glyphs[final_comp_name] = source_font['glyf'][comp_name]
             
             # Copy metrics
             try:
                 if comp_name in source_font['hmtx'].metrics:
-                    hmtx_table.metrics[comp_name] = source_font['hmtx'].metrics[comp_name]
+                    hmtx_table.metrics[final_comp_name] = source_font['hmtx'].metrics[comp_name]
                 else:
-                    hmtx_table.metrics[comp_name] = (0, 0)
+                    hmtx_table.metrics[final_comp_name] = (0, 0)
             except (KeyError, AttributeError):
-                hmtx_table.metrics[comp_name] = (0, 0)
+                hmtx_table.metrics[final_comp_name] = (0, 0)
             
-            # Add to glyph order
-            glyph_order.append(comp_name)
-            glyph_name_set.add(comp_name)
+            # Add to glyph order if not already present
+            if final_comp_name not in glyph_name_set:
+                glyph_order.append(final_comp_name)
+                glyph_name_set.add(final_comp_name)
+                glyph_name_to_source[final_comp_name] = (source_index, comp_name)
             
             # Check if this component has sub-components
-            glyph = glyf_table.glyphs[comp_name]
+            glyph = glyf_table.glyphs[final_comp_name]
             if glyph.isComposite():
                 for component in glyph.components:
                     sub_comp_name = component.glyphName
