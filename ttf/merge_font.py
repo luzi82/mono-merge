@@ -1,320 +1,229 @@
 #!/usr/bin/env python3
 """
-Merge multiple TTF font files based on a pick CSV file and metadata YAML.
-Creates a new monospace font by combining glyphs from base and multiple source fonts.
+Merge multiple TTF fonts based on character selection CSV.
+Creates a new monospace font by combining glyphs from multiple source fonts.
 """
 
 import argparse
 import csv
 import sys
 import yaml
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_a_s_p import table__g_a_s_p, GASP_SYMMETRIC_GRIDFIT, GASP_SYMMETRIC_SMOOTHING, GASP_DOGRAY, GASP_GRIDFIT
 
 
-def merge_fonts(input_base_ttf, input_ttf_list, input_pick_csv, input_meta_yaml, output_ttf, font_name, vendor_id):
-    """
-    Merge multiple TTF fonts based on pick CSV and metadata YAML.
-    
-    Args:
-        input_base_ttf: Path to base TTF font file
-        input_ttf_list: List of paths to TTF font files to merge
-        input_pick_csv: Path to pick CSV file (from pick_font.py)
-        input_meta_yaml: Path to metadata YAML file (from cal_meta.py)
-        output_ttf: Path for output merged TTF file
-        font_name: Name for the output font
-        vendor_id: OS/2 vendor ID (4 characters)
-    """
-    print(f"Loading base font: {input_base_ttf}")
-    base_font = TTFont(input_base_ttf)
-    
-    # Load all source fonts
-    source_fonts = []
-    for font_path in input_ttf_list:
-        print(f"Loading source font: {font_path}")
-        source_fonts.append(TTFont(font_path))
-    
-    print(f"Loading pick CSV: {input_pick_csv}")
-    with open(input_pick_csv, 'r', encoding='utf-8') as f:
-        pick_reader = csv.DictReader(f)
-        pick_data = {int(row['codepoint_dec']): row for row in pick_reader}
-    
-    print(f"Loading metadata: {input_meta_yaml}")
-    with open(input_meta_yaml, 'r', encoding='utf-8') as f:
-        metadata = yaml.safe_load(f)
-    
-    half_advance_width = metadata['half_advance_width']
-    full_advance_width = metadata['full_advance_width']
-    ascender = metadata['ascender']
-    descender = metadata['descender']
-    
-    print(f"Metadata: half_width={half_advance_width}, full_width={full_advance_width}")
-    print(f"Metadata: ascender={ascender}, descender={descender}")
-    
-    # Get cmap, hmtx, and glyf from base font and all source fonts BEFORE modifying
-    base_cmap = base_font.getBestCmap()
-    base_hmtx = base_font['hmtx']
-    base_glyf = base_font['glyf']
-    
-    source_cmaps = [font.getBestCmap() for font in source_fonts]
-    source_hmtxs = [font['hmtx'] for font in source_fonts]
-    source_glyfs = [font['glyf'] for font in source_fonts]
-    
-    # Reuse base font and replace character data in it
-    print("Creating merged font from base font...")
-    merged_font = base_font
+def load_fonts(ttf_paths):
+    """Load multiple TTF fonts from paths."""
+    fonts = []
+    for path in ttf_paths:
+        print(f"Loading font: {path}")
+        fonts.append(TTFont(path))
+    return fonts
 
-    # Remove GSUB and GPOS tables to avoid "Bad ligature glyph" errors
-    # since we are changing glyph indices and names
-    # Also remove variable font tables and other unnecessary tables
-    tables_to_remove = [
-        'GSUB', 'GPOS', 'DSIG', 'HVAR', 'VVAR', 'STAT', 'avar', 
-        'fvar', 'gvar', 'cvar', 'MVAR'
-    ]
-    for table_tag in tables_to_remove:
-        if table_tag in merged_font:
-            print(f"Removing {table_tag} table...")
-            del merged_font[table_tag]
-            
-    # Remove format 14 cmap subtables (Unicode Variation Sequences)
-    # as they are likely invalid after glyph pruning/renaming
-    if 'cmap' in merged_font:
-        cmap_table = merged_font['cmap']
-        new_tables = []
-        for subtable in cmap_table.tables:
-            if subtable.format == 14:
-                print("Removing cmap format 14 subtable...")
-                continue
-            new_tables.append(subtable)
-        cmap_table.tables = new_tables
 
-    # Prune unused glyphs to free up space (especially if base font is full)
-    if 'glyf' in merged_font:
-        print("Pruning unused glyphs...")
-        cmap = merged_font.getBestCmap()
-        glyf = merged_font['glyf']
-        hmtx = merged_font['hmtx']
-        
-        # Start with mapped glyphs and .notdef
-        used_glyphs = set(cmap.values())
-        if '.notdef' in glyf:
-            used_glyphs.add('.notdef')
-            
-        # Expand to include components
-        stack = list(used_glyphs)
-        while stack:
-            gname = stack.pop()
-            if gname in glyf:
-                glyph = glyf[gname]
-                if glyph.isComposite():
-                    for comp in glyph.components:
-                        if comp.glyphName not in used_glyphs:
-                            used_glyphs.add(comp.glyphName)
-                            stack.append(comp.glyphName)
-                            
-        # Remove unused
-        all_glyphs = merged_font.getGlyphOrder()
-        new_glyph_order = [g for g in all_glyphs if g in used_glyphs]
-        
-        print(f"Pruning glyphs: {len(all_glyphs)} -> {len(new_glyph_order)}")
-        
-        merged_font.setGlyphOrder(new_glyph_order)
-        merged_font['maxp'].numGlyphs = len(new_glyph_order)
-        
-        # Clean up hmtx table and glyf table
-        # We must manually remove glyphs from the internal dictionary to avoid
-        # triggering the automatic glyphOrder update (which would fail since we already updated it)
-        # and to ensure the glyphs dictionary matches the new glyphOrder (to avoid AssertionError at save)
-        for g in all_glyphs:
-            if g not in used_glyphs:
-                if g in hmtx.metrics:
-                    del hmtx.metrics[g]
-                if g in glyf.glyphs:
-                    del glyf.glyphs[g]
+def load_pick_csv(csv_path):
+    """Load character selection CSV file."""
+    picks = {}
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            codepoint_dec = int(row['codepoint_dec'])
+            pick_index = int(row['pick'])
+            is_full_width = row['is_full_width'] == 'True'
+            glyph_name = row['glyph_name']
+            picks[codepoint_dec] = {
+                'pick': pick_index,
+                'is_full_width': is_full_width,
+                'glyph_name': glyph_name
+            }
+    return picks
 
-    # Merge OS/2 code page and unicode ranges from all source fonts to ensure compatibility
-    if 'OS/2' in merged_font:
-        print("Merging OS/2 CodePage and Unicode ranges...")
-        base_os2 = merged_font['OS/2']
-        
-        # Helper to merge attributes safely
-        def merge_attr(attr, src_os2):
-            if hasattr(base_os2, attr) and hasattr(src_os2, attr):
-                val_base = getattr(base_os2, attr)
-                val_src = getattr(src_os2, attr)
-                setattr(base_os2, attr, val_base | val_src)
-        
-        for src_font in source_fonts:
-            if 'OS/2' in src_font:
-                src_os2 = src_font['OS/2']
-                merge_attr('ulCodePageRange1', src_os2)
-                merge_attr('ulCodePageRange2', src_os2)
-                merge_attr('ulUnicodeRange1', src_os2)
-                merge_attr('ulUnicodeRange2', src_os2)
-                merge_attr('ulUnicodeRange3', src_os2)
-                merge_attr('ulUnicodeRange4', src_os2)
-    
-    # Prepare for in-place modification
-    base_cmap = merged_font.getBestCmap()
-    base_hmtx = merged_font['hmtx']
-    base_glyf = merged_font['glyf']
-    glyph_order = merged_font.getGlyphOrder()
-    
-    # We need to track which glyphs we've added to avoid duplicates
-    # and to handle component renaming
-    added_glyphs = {} # (source_index, source_glyph_name) -> new_glyph_name_in_merged
-    
-    def import_glyph(source_index, source_glyph_name):
-        """
-        Import a glyph from a source font into the merged font.
-        Returns the name of the glyph in the merged font.
-        """
-        key = (source_index, source_glyph_name)
-        if key in added_glyphs:
-            return added_glyphs[key]
-            
-        source_font = source_fonts[source_index]
-        source_glyf = source_glyfs[source_index]
-        
-        if source_glyph_name not in source_glyf:
-            return '.notdef' # Fallback
-            
-        # Generate a new name to avoid collisions with existing base glyphs
-        # unless we are explicitly replacing a base glyph, but this function 
-        # is for *dependencies* (components) or *new* glyphs.
-        
-        # Simple renaming strategy: src{index}_{original_name}
-        new_name = f"src{source_index}_{source_glyph_name}"
-        
-        # Check if this name already exists (unlikely with prefix, but possible)
-        n = 0
-        while new_name in base_glyf:
-             n += 1
-             new_name = f"src{source_index}_{source_glyph_name}_{n}"
-             
-        # Copy the glyph object
-        import copy
-        glyph = copy.deepcopy(source_glyf[source_glyph_name])
-        
-        # Handle components if composite
-        if glyph.isComposite():
-            for comp in glyph.components:
-                comp.glyphName = import_glyph(source_index, comp.glyphName)
-                
-        # Add to merged font
-        base_glyf[new_name] = glyph
-        base_hmtx[new_name] = source_hmtxs[source_index][source_glyph_name]
-        glyph_order.append(new_name)
-        
-        added_glyphs[key] = new_name
-        return new_name
 
-    def copy_glyph_data(source_index, source_glyph_name, target_glyph_name):
-        """
-        Copy glyph data from source to target name in merged font.
-        Handles component recursion (importing dependencies as new glyphs).
-        """
-        source_glyf = source_glyfs[source_index]
-        if source_glyph_name not in source_glyf:
-            return # Should not happen
-            
-        import copy
-        glyph = copy.deepcopy(source_glyf[source_glyph_name])
-        
-        if glyph.isComposite():
-            for comp in glyph.components:
-                # Dependencies are always imported as NEW glyphs to avoid 
-                # messing up other existing glyphs in base font.
-                comp.glyphName = import_glyph(source_index, comp.glyphName)
-        
-        base_glyf[target_glyph_name] = glyph
-        
-        # Update metrics
-        orig_width, orig_lsb = source_hmtxs[source_index][source_glyph_name]
-        # We will override width later in the main loop, but set LSB here
-        base_hmtx[target_glyph_name] = (orig_width, orig_lsb)
+def load_meta_yaml(yaml_path):
+    """Load metadata YAML file."""
+    with open(yaml_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
 
-    print("Processing glyphs based on pick CSV...")
-    pick_counts = [0] * len(source_fonts)  # Track how many glyphs from each source
+
+def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date):
+    """Create a new merged font from source fonts based on character picks."""
     
-    for codepoint, pick_row in pick_data.items():
-        pick_index_str = pick_row.get('pick', '0')
-        try:
-            pick_index = int(pick_index_str)
-        except (ValueError, TypeError):
+    # Use the first source font as the base template
+    base_font = source_fonts[0]
+    
+    # Create a new font using the base font as template
+    print("Creating new merged font...")
+    merged_font = TTFont()
+    
+    # Copy essential tables from base font
+    for table_tag in ['head', 'hhea', 'maxp', 'OS/2', 'post', 'name', 'cmap']:
+        if table_tag in base_font:
+            merged_font[table_tag] = base_font[table_tag]
+    
+    # Create new glyf and loca tables
+    from fontTools.ttLib.tables._g_l_y_f import table__g_l_y_f
+    from fontTools.ttLib.tables._l_o_c_a import table__l_o_c_a
+    
+    glyf_table = table__g_l_y_f()
+    glyf_table.glyphs = {}
+    
+    # Create new hmtx table for horizontal metrics
+    from fontTools.ttLib.tables._h_m_t_x import table__h_m_t_x
+    hmtx_table = table__h_m_t_x()
+    hmtx_table.metrics = {}
+    
+    # Build glyph order and copy glyphs
+    glyph_order = ['.notdef']  # .notdef must be first
+    glyph_name_set = {'.notdef'}
+    
+    # First, add .notdef from base font
+    if '.notdef' in base_font['glyf']:
+        glyf_table.glyphs['.notdef'] = base_font['glyf']['.notdef']
+        hmtx_table.metrics['.notdef'] = base_font['hmtx']['.notdef']
+    
+    # Track components that need to be added
+    components_to_add = set()
+    
+    # Build cmap (character to glyph mapping)
+    from fontTools.ttLib.tables._c_m_a_p import table__c_m_a_p
+    cmap_table = table__c_m_a_p()
+    cmap_subtables = []
+    
+    # Create Unicode BMP subtable (format 4, platform 3, encoding 1) for U+0000-U+FFFF
+    from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
+    cmap_subtable_4 = CmapSubtable.newSubtable(4)
+    cmap_subtable_4.platformID = 3
+    cmap_subtable_4.platEncID = 1
+    cmap_subtable_4.language = 0
+    cmap_subtable_4.cmap = {}
+    
+    # Create Unicode full repertoire subtable (format 12, platform 3, encoding 10) for all Unicode
+    cmap_subtable_12 = CmapSubtable.newSubtable(12)
+    cmap_subtable_12.platformID = 3
+    cmap_subtable_12.platEncID = 10
+    cmap_subtable_12.language = 0
+    cmap_subtable_12.cmap = {}
+    
+    # Process each character according to pick CSV
+    print(f"Processing {len(picks)} characters...")
+    for codepoint, pick_info in sorted(picks.items()):
+        pick_index = pick_info['pick']
+        is_full_width = pick_info['is_full_width']
+        glyph_name = pick_info['glyph_name']
+        
+        # Ensure glyph_name is a string
+        if not isinstance(glyph_name, str):
+            print(f"Warning: glyph_name for U+{codepoint:04X} is {type(glyph_name)}: {repr(glyph_name)}, converting to string")
+            glyph_name = str(glyph_name)
+        
+        # Select the source font
+        if pick_index >= len(source_fonts):
+            print(f"Warning: Pick index {pick_index} out of range for codepoint U+{codepoint:04X}, using first font")
             pick_index = 0
         
-        is_full_width = pick_row.get('is_full_width', 'False') == 'True'
+        source_font = source_fonts[pick_index]
         
-        # Determine target advance width
-        target_width = full_advance_width if is_full_width else half_advance_width
-        
-        if 0 <= pick_index < len(source_fonts):
-            pick_counts[pick_index] += 1
+        # Copy glyph from source font
+        if glyph_name in source_font['glyf']:
+            # Copy glyph
+            glyf_table.glyphs[glyph_name] = source_font['glyf'][glyph_name]
             
-            if pick_index == 0: # Base font
-                if codepoint in base_cmap:
-                    gname = base_cmap[codepoint]
-                    # Update width only
-                    lsb = base_hmtx[gname][1]
-                    base_hmtx[gname] = (target_width, lsb)
-            else: # Other font
-                source_cmap = source_cmaps[pick_index]
-                if codepoint in source_cmap:
-                    source_gname = source_cmap[codepoint]
-                    
-                    if codepoint in base_cmap:
-                        # Replace existing glyph
-                        target_gname = base_cmap[codepoint]
-                        copy_glyph_data(pick_index, source_gname, target_gname)
-                        # Update width
-                        lsb = base_hmtx[target_gname][1]
-                        base_hmtx[target_gname] = (target_width, lsb)
-                    else:
-                        # New glyph
-                        new_name = import_glyph(pick_index, source_gname)
-                        base_cmap[codepoint] = new_name
-                        # Update width
-                        lsb = base_hmtx[new_name][1]
-                        base_hmtx[new_name] = (target_width, lsb)
+            # Set advance width based on full/half width
+            if is_full_width:
+                advance_width = meta['full_advance_width']
+            else:
+                advance_width = meta['half_advance_width']
+            
+            # Get original lsb or use 0
+            try:
+                if glyph_name in source_font['hmtx'].metrics:
+                    _, original_lsb = source_font['hmtx'].metrics[glyph_name]
+                else:
+                    original_lsb = 0
+            except (KeyError, AttributeError):
+                original_lsb = 0
+            
+            hmtx_table.metrics[glyph_name] = (advance_width, original_lsb)
+            
+            # Add to glyph order if not already present
+            if glyph_name not in glyph_name_set:
+                glyph_order.append(glyph_name)
+                glyph_name_set.add(glyph_name)
+            
+            # Map character to glyph
+            if codepoint <= 0xFFFF:
+                # BMP characters go in both format 4 and format 12
+                cmap_subtable_4.cmap[codepoint] = glyph_name
+            # All characters go in format 12
+            cmap_subtable_12.cmap[codepoint] = glyph_name
+            
+            # Check for composite glyph components
+            glyph = glyf_table.glyphs[glyph_name]
+            if glyph.isComposite():
+                for component in glyph.components:
+                    comp_name = component.glyphName
+                    if comp_name not in glyph_name_set:
+                        components_to_add.add((comp_name, pick_index))
     
-    # Print statistics
-    print(f"Merged glyphs from {len(source_fonts)} source font(s):")
-    for i, count in enumerate(pick_counts):
-        print(f"  Source {i}: {count} glyphs")
+    # Add component glyphs recursively
+    while components_to_add:
+        comp_name, source_index = components_to_add.pop()
+        if comp_name in glyph_name_set:
+            continue
+        
+        # Ensure comp_name is a string
+        if not isinstance(comp_name, str):
+            comp_name = str(comp_name)
+        
+        source_font = source_fonts[source_index]
+        
+        if comp_name in source_font['glyf']:
+            # Copy component glyph
+            glyf_table.glyphs[comp_name] = source_font['glyf'][comp_name]
+            
+            # Copy metrics
+            try:
+                if comp_name in source_font['hmtx'].metrics:
+                    hmtx_table.metrics[comp_name] = source_font['hmtx'].metrics[comp_name]
+                else:
+                    hmtx_table.metrics[comp_name] = (0, 0)
+            except (KeyError, AttributeError):
+                hmtx_table.metrics[comp_name] = (0, 0)
+            
+            # Add to glyph order
+            glyph_order.append(comp_name)
+            glyph_name_set.add(comp_name)
+            
+            # Check if this component has sub-components
+            glyph = glyf_table.glyphs[comp_name]
+            if glyph.isComposite():
+                for component in glyph.components:
+                    sub_comp_name = component.glyphName
+                    if sub_comp_name not in glyph_name_set:
+                        components_to_add.add((sub_comp_name, source_index))
     
-    # Update cmap table with modified base_cmap
-    print("Updating cmap table...")
-    cmap_table = merged_font['cmap']
-    # Find the Unicode cmap subtable (platformID=3, platEncID=1 or 10)
-    target_subtable = None
-    for subtable in cmap_table.tables:
-        if subtable.platformID == 3 and subtable.platEncID in (1, 10):
-            target_subtable = subtable
-            break
+    print(f"Total glyphs in merged font: {len(glyph_order)}")
     
-    if target_subtable:
-        target_subtable.cmap = base_cmap
-    else:
-        print("Warning: Could not find Unicode cmap subtable to update. Creating new one.")
-        from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
-        new_subtable = CmapSubtable.newSubtable(4)
-        new_subtable.platformID = 3
-        new_subtable.platEncID = 1
-        new_subtable.language = 0
-        new_subtable.cmap = base_cmap
-        cmap_table.tables.append(new_subtable)
-
-    # Set glyph order
+    # Set glyph table
+    glyf_table.glyphOrder = glyph_order
+    merged_font['glyf'] = glyf_table
     merged_font.setGlyphOrder(glyph_order)
     
-    # Update maxp table
-    if 'maxp' in merged_font:
-        merged_font['maxp'].numGlyphs = len(glyph_order)
+    # Set loca table
+    loca_table = table__l_o_c_a()
+    merged_font['loca'] = loca_table
     
-    # Update Name Table with minimal metadata
+    # Set hmtx table
+    merged_font['hmtx'] = hmtx_table
+    
+    # Set cmap table
+    cmap_table.tableVersion = 0
+    cmap_table.tables = [cmap_subtable_4, cmap_subtable_12]
+    merged_font['cmap'] = cmap_table
+    
+    # Update name table
     print(f"Setting font name to: {font_name}")
     name_table = merged_font['name']
     family_name = font_name
@@ -323,107 +232,67 @@ def merge_fonts(input_base_ttf, input_ttf_list, input_pick_csv, input_meta_yaml,
     unique_name = f"{font_name}-MonoMerge"
     ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
     metadata_text = 'created by MonoMerge'
-    
-    # Version is timestamp
-    version_string = datetime.now().strftime('%Y%m%d%H%M%S')
-    
+    version_string = version_date
+
     def set_name_all_platforms(name_id, value):
         if value is None:
             return
-        name_table.setName(value, name_id, 3, 1, 0x409)  # Windows Unicode
-        name_table.setName(value, name_id, 1, 0, 0)      # Mac Roman
-        name_table.setName(value, name_id, 0, 3, 0)      # Unicode
-    
-    # Set essential name records
-    set_name_all_platforms(0, metadata_text)      # Copyright
-    set_name_all_platforms(1, family_name)        # Font Family
-    set_name_all_platforms(2, subfamily_name)     # Subfamily
-    set_name_all_platforms(3, unique_name)        # Unique ID
-    set_name_all_platforms(4, full_name)          # Full name
-    set_name_all_platforms(5, version_string)     # Version
-    set_name_all_platforms(6, ps_name)            # PostScript name
-    set_name_all_platforms(8, metadata_text)      # Manufacturer
-    set_name_all_platforms(9, metadata_text)      # Designer
-    set_name_all_platforms(11, metadata_text)     # Vendor URL
-    set_name_all_platforms(13, metadata_text)     # License
-    
-    # Recalculate global metrics
-    print("Recalculating global metrics (head, hhea)...")
-    
-    head_x_min = 32767
-    head_y_min = 32767
-    head_x_max = -32768
-    head_y_max = -32768
-    
-    hhea_min_lsb = 32767
-    hhea_min_rsb = 32767
-    hhea_max_extent = -32768
-    hhea_max_advance = 0
-    
-    for name, (advance, lsb) in base_hmtx.metrics.items():
-        hhea_max_advance = max(hhea_max_advance, advance)
-        hhea_min_lsb = min(hhea_min_lsb, lsb)
-        
-        if name in base_glyf:
-            glyph = base_glyf[name]
-            # Ensure glyph has bounds calculated
-            if not hasattr(glyph, 'xMin'):
-                glyph.recalcBounds(base_glyf)
-            
-            if hasattr(glyph, 'xMin'):
-                head_x_min = min(head_x_min, glyph.xMin)
-                head_y_min = min(head_y_min, glyph.yMin)
-                head_x_max = max(head_x_max, glyph.xMax)
-                head_y_max = max(head_y_max, glyph.yMax)
-                
-                rsb = advance - glyph.xMax
-                hhea_min_rsb = min(hhea_min_rsb, rsb)
-                hhea_max_extent = max(hhea_max_extent, glyph.xMax)
-    
-    # Update head table
-    if 'head' in merged_font:
-        head = merged_font['head']
-        head.xMin = head_x_min
-        head.yMin = head_y_min
-        head.xMax = head_x_max
-        head.yMax = head_y_max
-        print(f"head bbox: ({head_x_min}, {head_y_min}) - ({head_x_max}, {head_y_max})")
+        name_table.setName(value, name_id, 3, 1, 0x409)
+        name_table.setName(value, name_id, 1, 0, 0)
+        name_table.setName(value, name_id, 0, 3, 0)
 
-    # Update hhea table
-    if 'hhea' in merged_font:
-        hhea = merged_font['hhea']
-        hhea.ascent = ascender
-        hhea.descent = descender
-        hhea.advanceWidthMax = hhea_max_advance
-        hhea.minLeftSideBearing = hhea_min_lsb
-        hhea.minRightSideBearing = hhea_min_rsb
-        hhea.xMaxExtent = hhea_max_extent
-        hhea.numberOfHMetrics = len(glyph_order) # Ensure this matches numGlyphs
-        print(f"hhea metrics: advanceWidthMax={hhea_max_advance}, minLSB={hhea_min_lsb}, minRSB={hhea_min_rsb}, xMaxExtent={hhea_max_extent}")
-
+    # Clear and set name records
+    name_table.names = []
+    set_name_all_platforms(0, metadata_text)  # Copyright
+    set_name_all_platforms(1, family_name)  # Font Family
+    set_name_all_platforms(2, subfamily_name)  # Subfamily
+    set_name_all_platforms(3, unique_name)  # Unique ID
+    set_name_all_platforms(4, full_name)  # Full name
+    set_name_all_platforms(5, version_string)  # Version
+    set_name_all_platforms(6, ps_name)  # PostScript name
+    set_name_all_platforms(8, metadata_text)  # Manufacturer
+    set_name_all_platforms(9, metadata_text)  # Designer
+    set_name_all_platforms(11, metadata_text)  # Vendor URL
+    set_name_all_platforms(13, metadata_text)  # License
+    
     # Update OS/2 table
+    print("Configuring OS/2 table for monospace...")
     if 'OS/2' in merged_font:
-        merged_font['OS/2'].sTypoAscender = ascender
-        merged_font['OS/2'].sTypoDescender = descender
-        merged_font['OS/2'].usWinAscent = ascender
-        merged_font['OS/2'].usWinDescent = abs(descender)
+        os2 = merged_font['OS/2']
         
         # Set vendor ID
-        merged_font['OS/2'].achVendID = vendor_id[:4].ljust(4)  # Must be exactly 4 chars
+        os2.achVendID = vendor_id
+        
+        # Set ascender and descender
+        os2.sTypoAscender = meta['ascender']
+        os2.sTypoDescender = meta['descender']
+        os2.usWinAscent = meta['ascender']
+        os2.usWinDescent = abs(meta['descender'])
+        
+        # Mark as monospace
+        os2.panose.bProportion = 9  # Monospace
+        os2.xAvgCharWidth = meta['half_advance_width']
+        
+        # Recalculate Unicode ranges based on actual characters in cmap
+        print("Recalculating Unicode ranges...")
+        os2.recalcUnicodeRanges(merged_font)
     
-    # Mark font as monospace/fixed-pitch
-    print("Marking font as monospace...")
+    # Update hhea table
+    if 'hhea' in merged_font:
+        merged_font['hhea'].ascent = meta['ascender']
+        merged_font['hhea'].descent = meta['descender']
+    
+    # Update post table - mark as fixed pitch
+    print("Marking font as monospace/fixed-pitch...")
     if 'post' in merged_font:
-        merged_font['post'].isFixedPitch = 1
+        post_table = merged_font['post']
+        post_table.isFixedPitch = 1
+        post_table.formatType = 3.0  # No glyph names
+        post_table.extraNames = []
+        post_table.mapping = {}
     
-    if 'OS/2' in merged_font:
-        # Set PANOSE bProportion to 9 (monospace)
-        merged_font['OS/2'].panose.bProportion = 9
-        # Set xAvgCharWidth to the half-width
-        merged_font['OS/2'].xAvgCharWidth = half_advance_width
-    
-    # Add gasp table for better Windows rendering
-    print("Adding gasp table...")
+    # Add gasp table for better rendering
+    print("Adding gasp table for improved rendering...")
     gasp = table__g_a_s_p()
     gasp.version = 1
     gasp.gaspRange = {
@@ -431,115 +300,119 @@ def merge_fonts(input_base_ttf, input_ttf_list, input_pick_csv, input_meta_yaml,
     }
     merged_font['gasp'] = gasp
     
-    # Save the merged font
-    print(f"Saving merged font to: {output_ttf}")
-    merged_font.save(output_ttf, reorderTables=True)
-    print("Done!")
+    # Remove unnecessary tables
+    tables_to_remove = ['DSIG', 'meta', 'GPOS', 'GSUB']
+    for table_tag in tables_to_remove:
+        if table_tag in merged_font:
+            del merged_font[table_tag]
+    
+    return merged_font
 
 
 def main():
-    """Main entry point."""
-    # Generate default font name and output path with timestamp
-    today = datetime.now().strftime('%Y%m%d%H%M%S')
-    default_font_name = f"test{today}"
-    default_output = f"output/test{today}.ttf"
-    
     parser = argparse.ArgumentParser(
-        description='Merge multiple TTF fonts based on pick CSV and metadata YAML',
+        description='Merge multiple TTF fonts based on character selection',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  %(prog)s input/Inconsolata-Regular.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
-  %(prog)s input/Inconsolata-Regular.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml -n MyFont -o output/myfont.ttf --vendor-id MYFN
+Example:
+  %(prog)s input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/merged.ttf
         """
     )
     
     parser.add_argument(
-        'input_base_ttf',
-        help='Base TTF font file (e.g., input/Inconsolata-Regular.ttf)'
-    )
-    
-    parser.add_argument(
         'input_ttf_list',
-        help='Comma-separated list of TTF font files to merge (e.g., input/Inconsolata-Regular.ttf,output/cjk.ttf)'
+        type=str,
+        help='Comma-separated list of input TTF files (e.g., input/font1.ttf,input/font2.ttf)'
     )
     
     parser.add_argument(
         'input_pick_csv',
-        help='Pick CSV file from pick_font.py (e.g., output/pick.char.csv)'
+        type=str,
+        help='CSV file with character-to-font mappings (created by ttf/pick_font.py)'
     )
     
     parser.add_argument(
         'input_meta_yaml',
-        help='Metadata YAML file from cal_meta.py (e.g., output/pick.meta.yaml)'
+        type=str,
+        help='YAML file with font metadata (created by ttf/cal_meta.py)'
     )
     
     parser.add_argument(
         '--vendor-id',
         type=str,
         default='MOME',
-        help='OS/2 vendor ID (4 characters, default: MOME)'
+        help='OS/2 vendor ID (default: MOME)'
     )
     
     parser.add_argument(
-        '-n', '--name',
+        '--font-name',
         type=str,
-        help=f'Font name (default: {default_font_name})'
+        help='Font name (default: test{yyyymmddhhmmss})'
     )
     
     parser.add_argument(
-        '-o', '--output',
+        '--output',
         type=str,
-        help=f'Output TTF file path (default: {default_output})'
+        help='Output TTF file (default: output/test{yyyymmddhhmmss}.ttf)'
     )
     
     args = parser.parse_args()
     
-    # Parse TTF list
-    ttf_list = [path.strip() for path in args.input_ttf_list.split(',')]
-    
-    # Determine font name
-    font_name = args.name if args.name else default_font_name
-    
-    # Determine output path
-    output_ttf = args.output if args.output else default_output
+    # Parse input font list
+    ttf_paths = [p.strip() for p in args.input_ttf_list.split(',')]
     
     # Validate input files
-    if not Path(args.input_base_ttf).exists():
-        print(f"Error: Base font not found: {args.input_base_ttf}", file=sys.stderr)
-        return 1
-    
-    for font_path in ttf_list:
-        if not Path(font_path).exists():
-            print(f"Error: Input font not found: {font_path}", file=sys.stderr)
-            return 1
-    
-    for path in [args.input_pick_csv, args.input_meta_yaml]:
+    for path in ttf_paths:
         if not Path(path).exists():
-            print(f"Error: Input file not found: {path}", file=sys.stderr)
-            return 1
+            print(f"Error: Font file not found: {path}", file=sys.stderr)
+            sys.exit(1)
     
-    # Create output directory if needed
-    Path(output_ttf).parent.mkdir(parents=True, exist_ok=True)
+    if not Path(args.input_pick_csv).exists():
+        print(f"Error: Pick CSV file not found: {args.input_pick_csv}", file=sys.stderr)
+        sys.exit(1)
     
-    # Perform merge
-    try:
-        merge_fonts(
-            args.input_base_ttf,
-            ttf_list,
-            args.input_pick_csv,
-            args.input_meta_yaml,
-            output_ttf,
-            font_name,
-            args.vendor_id
-        )
-        return 0
-    except Exception as e:
-        print(f"Error during font merge: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        return 1
+    if not Path(args.input_meta_yaml).exists():
+        print(f"Error: Meta YAML file not found: {args.input_meta_yaml}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Generate default font name and output path if needed
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    font_name = args.font_name if args.font_name else f"test{timestamp}"
+    output_path = args.output if args.output else f"output/test{timestamp}.ttf"
+    
+    # Ensure output directory exists
+    output_dir = Path(output_path).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Load fonts
+    source_fonts = load_fonts(ttf_paths)
+    
+    # Load pick CSV
+    print(f"Loading pick CSV: {args.input_pick_csv}")
+    picks = load_pick_csv(args.input_pick_csv)
+    
+    # Load metadata
+    print(f"Loading metadata: {args.input_meta_yaml}")
+    meta = load_meta_yaml(args.input_meta_yaml)
+    
+    print(f"Metadata: half_width={meta['half_advance_width']}, full_width={meta['full_advance_width']}")
+    print(f"Metadata: ascender={meta['ascender']}, descender={meta['descender']}")
+    
+    # Create merged font
+    merged_font = create_merged_font(
+        source_fonts,
+        picks,
+        meta,
+        font_name,
+        args.vendor_id,
+        timestamp
+    )
+    
+    # Save merged font
+    print(f"Saving merged font to: {output_path}")
+    merged_font.save(output_path, reorderTables=True)
+    print("Done!")
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()
