@@ -47,7 +47,7 @@ def load_meta_yaml(yaml_path):
         return yaml.safe_load(f)
 
 
-def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date):
+def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date, url_vendor=None, name_unique_id=None, license_text=None):
     """Create a new merged font from source fonts based on character picks."""
     
     # Use the first source font as the base template
@@ -267,7 +267,7 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
     family_name = font_name
     subfamily_name = 'Regular'
     full_name = f"{font_name} {subfamily_name}".strip()
-    unique_name = f"{font_name}-MonoMerge"
+    unique_name = name_unique_id if name_unique_id else f"{font_name}-MonoMerge"
     ps_name = ''.join(ch for ch in font_name if ch.isalnum()) or 'MonoMerged'
     metadata_text = 'created by MonoMerge'
     version_string = version_date
@@ -290,8 +290,8 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
     set_name_all_platforms(6, ps_name)  # PostScript name
     set_name_all_platforms(8, metadata_text)  # Manufacturer
     set_name_all_platforms(9, metadata_text)  # Designer
-    set_name_all_platforms(11, metadata_text)  # Vendor URL
-    set_name_all_platforms(13, metadata_text)  # License
+    set_name_all_platforms(11, url_vendor if url_vendor else metadata_text)  # Vendor URL
+    set_name_all_platforms(13, license_text if license_text else metadata_text)  # License
     
     # Update OS/2 table
     print("Configuring OS/2 table for monospace...")
@@ -390,10 +390,9 @@ Example:
     )
     
     parser.add_argument(
-        '--vendor-id',
+        '--input-info-meta-yaml',
         type=str,
-        default='MOME',
-        help='OS/2 vendor ID (default: MOME)'
+        help='Optional YAML file with additional metadata (e.g., CodeCJK\\codecjk_meta.yaml)'
     )
     
     parser.add_argument(
@@ -410,14 +409,55 @@ Example:
     
     args = parser.parse_args()
     
-    # Validate vendor ID format
-    if len(args.vendor_id) != 4:
-        print(f"Error: Vendor ID must be exactly 4 characters, got: '{args.vendor_id}' ({len(args.vendor_id)} chars)", file=sys.stderr)
-        sys.exit(1)
+    # Generate default font name if needed
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    font_name = args.font_name if args.font_name else f"test{timestamp}"
     
-    if not args.vendor_id.isascii():
-        print(f"Error: Vendor ID must contain only ASCII characters, got: '{args.vendor_id}'", file=sys.stderr)
-        sys.exit(1)
+    # Replace DATETIME placeholder in font name
+    if "DATETIME" in font_name:
+        font_name = font_name.replace("DATETIME", timestamp)
+    
+    # Load optional meta_yaml and replace {FONT_NAME}
+    vendor_id = 'MOME'  # Default vendor ID
+    if args.input_info_meta_yaml:
+        if not Path(args.input_info_meta_yaml).exists():
+            print(f"Error: Meta YAML file not found: {args.input_info_meta_yaml}", file=sys.stderr)
+            sys.exit(1)
+        
+        print(f"Loading additional metadata: {args.input_info_meta_yaml}")
+        additional_meta = load_meta_yaml(args.input_info_meta_yaml)
+        
+        # Replace {FONT_NAME} in all string values
+        def replace_font_name_recursive(obj):
+            if isinstance(obj, str):
+                return obj.replace('{FONT_NAME}', font_name)
+            elif isinstance(obj, dict):
+                return {k: replace_font_name_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_font_name_recursive(item) for item in obj]
+            else:
+                return obj
+        
+        additional_meta = replace_font_name_recursive(additional_meta)
+        
+        # Extract vendor_id if present
+        if 'vendor_id' in additional_meta:
+            vendor_id = additional_meta['vendor_id']
+            print(f"Using vendor ID from meta_yaml: {vendor_id}")
+            
+            # Validate vendor ID format
+            if len(vendor_id) != 4:
+                print(f"Error: Vendor ID must be exactly 4 characters, got: '{vendor_id}' ({len(vendor_id)} chars)", file=sys.stderr)
+                sys.exit(1)
+            
+            if not vendor_id.isascii():
+                print(f"Error: Vendor ID must contain only ASCII characters, got: '{vendor_id}'", file=sys.stderr)
+                sys.exit(1)
+    
+    # Extract additional metadata fields
+    url_vendor = additional_meta.get('url_vendor') if args.input_info_meta_yaml else None
+    name_unique_id = additional_meta.get('name_unique_id') if args.input_info_meta_yaml else None
+    license_text = additional_meta.get('license') if args.input_info_meta_yaml else None
     
     # Parse input font list
     ttf_paths = [p.strip() for p in args.input_ttf_list.split(',')]
@@ -436,17 +476,13 @@ Example:
         print(f"Error: Meta YAML file not found: {args.input_meta_yaml}", file=sys.stderr)
         sys.exit(1)
     
-    # Generate default font name and output path if needed
+    # Generate default output path if needed
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    font_name = args.font_name if args.font_name else f"test{timestamp}"
     output_path = args.output if args.output else f"output/test{timestamp}.ttf"
     
-    # Replace DATETIME placeholder in output path and font name
+    # Replace DATETIME placeholder in output path
     if "DATETIME" in output_path:
         output_path = output_path.replace("DATETIME", timestamp)
-    
-    if "DATETIME" in font_name:
-        font_name = font_name.replace("DATETIME", timestamp)
     
     # Ensure output directory exists
     output_dir = Path(output_path).parent
@@ -472,8 +508,11 @@ Example:
         picks,
         meta,
         font_name,
-        args.vendor_id,
-        timestamp
+        vendor_id,
+        timestamp,
+        url_vendor,
+        name_unique_id,
+        license_text
     )
     
     # Save merged font
