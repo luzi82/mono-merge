@@ -47,7 +47,7 @@ def load_meta_yaml(yaml_path):
         return yaml.safe_load(f)
 
 
-def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date, url_vendor=None, name_unique_id=None, license_text=None):
+def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_date, url_vendor=None, name_unique_id=None, license_text=None, copyright_text=None):
     """Create a new merged font from source fonts based on character picks."""
     
     # Use the first source font as the base template
@@ -281,7 +281,7 @@ def create_merged_font(source_fonts, picks, meta, font_name, vendor_id, version_
 
     # Clear and set name records
     name_table.names = []
-    set_name_all_platforms(0, metadata_text)  # Copyright
+    set_name_all_platforms(0, copyright_text if copyright_text else metadata_text)  # Copyright
     set_name_all_platforms(1, family_name)  # Font Family
     set_name_all_platforms(2, subfamily_name)  # Subfamily
     set_name_all_platforms(3, unique_name)  # Unique ID
@@ -470,6 +470,7 @@ Example:
     url_vendor = additional_meta.get('url_vendor') if args.input_info_meta_yaml else None
     name_unique_id = additional_meta.get('name_unique_id') if args.input_info_meta_yaml else None
     license_text = additional_meta.get('license') if args.input_info_meta_yaml else None
+    copyright_text = additional_meta.get('copyright') if args.input_info_meta_yaml else None
     
     # Parse input font list
     ttf_paths = [p.strip() for p in args.input_ttf_list.split(',')]
@@ -527,7 +528,8 @@ Example:
         font_version,
         url_vendor,
         name_unique_id,
-        license_text
+        license_text,
+        copyright_text
     )
     
     # Save merged font
