@@ -10,13 +10,14 @@ import sys
 import yaml
 
 
-def calculate_metadata(input_height_csv, input_y_csv):
+def calculate_metadata(input_height_csv, input_y_csv, height_multiplier=1.2):
     """
     Calculate font metadata from CSV files created by dump_char_csv.py.
     
     Args:
         input_height_csv: Path to input CSV file for determining font height
         input_y_csv: Path to input CSV file for determining font y position
+        height_multiplier: Multiplier for font height calculation (default: 1.2)
         
     Returns:
         Dictionary containing calculated metadata
@@ -87,8 +88,8 @@ def calculate_metadata(input_height_csv, input_y_csv):
     # Calculate character height from height CSV
     char_height = max_yMax_height - min_yMin_height
     
-    # Calculate font height (1.2 times character height)
-    font_height = char_height * 1.2
+    # Calculate font height
+    font_height = char_height * height_multiplier
     
     # Get max y from y CSV
     max_yMax_y = max(ymax_y_values)
@@ -137,11 +138,17 @@ def main():
         'output_yaml',
         help='Output YAML file to write the calculated metadata'
     )
+    parser.add_argument(
+        '--height-multiplier',
+        type=float,
+        default=1.2,
+        help='Multiplier for font height calculation (default: 1.2)'
+    )
     
     args = parser.parse_args()
     
     # Calculate metadata
-    metadata = calculate_metadata(args.input_height_font_csv, args.input_y_font_csv)
+    metadata = calculate_metadata(args.input_height_font_csv, args.input_y_font_csv, args.height_multiplier)
     
     # Write to YAML file
     with open(args.output_yaml, 'w', encoding='utf-8') as f:
