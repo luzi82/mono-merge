@@ -1,5 +1,8 @@
-# get python path
+# windows, get python path
 (Get-Command python).Source
+
+# windows
+./.venv/Scripts/Activate.ps1
 
 ===
 
@@ -10,14 +13,15 @@ python ttf/dump_char_csv.py input/Inconsolata-Regular.ttf output/Inconsolata-Reg
 python ttf/dump_char_csv.py input/NotoSansMonoCJKhk-VF.ttf output/NotoSansMonoCJKhk-VF.char.csv
 
 python ttf/filter_char_csv.py output/Inconsolata-Regular.char.csv  ascii output/Inconsolata-Regular.ascii.csv
-python ttf/filter_char_csv.py output/NotoSansMonoCJKhk-VF.char.csv cjk   output/NotoSansMonoCJKhk-VF.cjk.csv
+python ttf/filter_char_csv.py output/Inconsolata-Regular.char.csv  upper,number output/Inconsolata-Regular.big.csv
+python ttf/filter_char_csv.py output/NotoSansMonoCJKhk-VF.char.csv common_cjk output/NotoSansMonoCJKhk-VF.ccjk.csv
 
 python ttf/list_extreme_y.py output/Inconsolata-Regular.ascii.csv output/Inconsolata-Regular.ascii.extremey.csv
 python ttf/list_extreme_y.py output/NotoSansMonoCJKhk-VF.cjk.csv  output/NotoSansMonoCJKhk-VF.cjk.extremey.csv
 
 # ()jy宺ざ퓠퀐
 
-python ttf/cal_shift_y.py output/Inconsolata-Regular.ascii.extremey.csv output/NotoSansMonoCJKhk-VF.cjk.extremey.csv output/shift.yaml
+python ttf/cal_shift_y.py output/Inconsolata-Regular.big.csv output/NotoSansMonoCJKhk-VF.cjk.csv output/shift.yaml
 
 python ttf/font_shift_y.py input/NotoSansMonoCJKhk-VF.ttf output/shift.yaml output/cjk.ttf
 
@@ -28,7 +32,7 @@ python ttf/pick_font.py output/Inconsolata-Regular.char.csv,output/cjk.char.csv 
 python ttf/cal_meta.py output/Inconsolata-Regular.ascii.csv output/pick.meta.yaml
 
 # python ttf/merge_font.py input/Inconsolata-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
-python ttf/merge_font.py output/cjk.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
+python ttf/merge_font.py input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 
 python ttf/dump_data_yaml.py output/test.ttf output/test.data.yaml
 
@@ -44,9 +48,9 @@ python font_preview.py output/test.ttf "(j宺퀐" output/test0 --debug
 python font_preview.py output/test.ttf "你好嗎 123 ()jy宺ざ퓠퀐" output/test1 --debug
 python font_preview.py output/test.ttf "你好嗎 123 ()jy宺ざ퓠퀐" output/test
 
-python ttf/merge_font.py input/Inconsolata-Regular.ttf output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
+python ttf/merge_font.py input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml
 
-python ttf/merge_font.py output/cjk.ttf input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/CodeCJK.ttf
+python ttf/merge_font.py input/Inconsolata-Regular.ttf,output/cjk.ttf output/pick.char.csv output/pick.meta.yaml --output output/test.ttf
 
 ===
 
@@ -82,10 +86,9 @@ create a new python main script ttf/cal_meta.py
 
 ===
 
-change ttf/merge_font.py
+Create main script ttf/merge_font.py
 
 * args:
-  * input_base_ttf: the base ttf for creating new font
   * input_ttf_list: a input ttf file list, seperated by comma, e.g. input/Inconsolata-Regular.ttf,output/cjk.ttf
   * input_pick_csv: a csv file created by ttf/pick_font.py, take output/pick.char.csv as example
   * input_meta_yaml: a yaml file created by ttf/cal_meta.py, take output/pick.meta.yaml as example
@@ -95,15 +98,15 @@ change ttf/merge_font.py
     * if not given, use test{yyyymmddhhmmss}
   * output_ttf: the output ttf file
     * if not given, use output/test{yyyymmddhhmmss}.ttf
-* create a new ttf file output_ttf, use input_base_ttf as base, and combine ttf in input_ttf_list
+* create a new ttf file output_ttf, combine ttf in input_ttf_list
+* the new ttf should be a new ttf instance from fonttools
 * input_pick_csv pick column decide which ttf to be used on the char, 0=first, 1=second, etc
 * for is_full_width is true, advance width should be full_advance_width in input_meta_yaml, otherwise half_advance_width
 * mark the font as monospace, take monomerge.py as reference.
+* update unicode support range table
 * ascender and descender follow input_meta_yaml
-* <del>remove all unnecessary meta data in the font file which is not related to font rendering.</del>
-* keep all meta data
 * version is {yyyymmddhhmmss}
-* for all remaining meta data which are description, just put "created by MonoMerge"
+* for all other information meta data, just put "created by MonoMerge"
 
 ===
 
@@ -169,3 +172,14 @@ Change ttf/pick_font.py:
 * The output csv should also sorted by codepoint_dec
 * Avoid loading whole csv data into memory
 * Create new column "pick", first=0, second=1...
+
+===
+
+Create a new python script ttf/remove_table.py
+
+* args:
+  * input_ttf: the input ttf file
+  * output_ttf: the output ttf file
+* Remove GPOS and GSUB tables from the ttf file
+
+python ttf/remove_table.py output/CodeCJK002_20251229000015.ttf output/tmp.ttf

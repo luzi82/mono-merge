@@ -37,3 +37,27 @@ def is_cjk_char(codepoint):
         (0x30A0 <= codepoint <= 0x30FF) or
         (0xAC00 <= codepoint <= 0xD7AF)
     )
+
+
+def is_upper_char(codepoint):
+    """Check if a codepoint is an uppercase letter."""
+    # ASCII uppercase (A-Z): 0x41-0x5A (65-90)
+    return 0x41 <= codepoint <= 0x5A
+
+
+def is_lower_char(codepoint):
+    """Check if a codepoint is a lowercase letter."""
+    # ASCII lowercase (a-z): 0x61-0x7A (97-122)
+    return 0x61 <= codepoint <= 0x7A
+
+
+def is_number_char(codepoint):
+    """Check if a codepoint is a digit."""
+    # ASCII digits (0-9): 0x30-0x39 (48-57)
+    return 0x30 <= codepoint <= 0x39
+
+
+def is_common_cjk_char(codepoint):
+    """Check if a codepoint is a common CJK character."""
+    # CJK Unified Ideographs (U+4E00-U+9FFF)
+    return 0x4E00 <= codepoint <= 0x9FFF
