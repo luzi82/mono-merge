@@ -413,6 +413,12 @@ Example:
         help='Override timestamp in format yyyymmddhhmmss (default: current datetime)'
     )
     
+    parser.add_argument(
+        '--font-version',
+        type=str,
+        help='Override font version string (default: timestamp)'
+    )
+    
     args = parser.parse_args()
     
     # Generate default font name if needed
@@ -508,6 +514,9 @@ Example:
     print(f"Metadata: half_width={meta['half_advance_width']}, full_width={meta['full_advance_width']}")
     print(f"Metadata: ascender={meta['ascender']}, descender={meta['descender']}")
     
+    # Determine font version
+    font_version = args.font_version if args.font_version else timestamp
+    
     # Create merged font
     merged_font = create_merged_font(
         source_fonts,
@@ -515,7 +524,7 @@ Example:
         meta,
         font_name,
         vendor_id,
-        timestamp,
+        font_version,
         url_vendor,
         name_unique_id,
         license_text
