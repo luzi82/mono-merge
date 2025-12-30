@@ -37,3 +37,7 @@ TBA
 ## How to create the ttf file?
 
 TBA
+
+## 其他
+
+* CodeCJK 是字型 **檔** ，而 **不** 是字型。因為它只是直接使用坊間既有的字型，而沒有設計自己的字型。
