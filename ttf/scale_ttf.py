@@ -185,8 +185,9 @@ def main():
         help='The TTF font to be scaled'
     )
     parser.add_argument(
-        'input_target_ttf',
-        help='The TTF font to match'
+        'scale_factor',
+        type=float,
+        help='Scale factor to apply (e.g., 1.2 for 120%%)'
     )
     parser.add_argument(
         'output_ttf',
@@ -195,28 +196,12 @@ def main():
     
     args = parser.parse_args()
     
-    # Load fonts
-    print(f"Loading fonts...")
+    # Load font
+    print(f"Loading font...")
     scale_font_obj = TTFont(args.input_scale_ttf)
-    target_font_obj = TTFont(args.input_target_ttf)
     
-    # Get advance width of 'O' from both fonts
-    scale_width = get_char_advance_width(scale_font_obj, 'O')
-    target_width = get_char_advance_width(target_font_obj, 'O')
-    
-    if scale_width is None:
-        print("Error: Character 'O' not found in input_scale_ttf")
-        return 1
-    
-    if target_width is None:
-        print("Error: Character 'O' not found in input_target_ttf")
-        return 1
-    
-    print(f"Input scale font 'O' advance width: {scale_width}")
-    print(f"Target font 'O' advance width: {target_width}")
-    
-    # Calculate scale factor
-    scale_factor = target_width / scale_width
+    # Get scale factor from arguments
+    scale_factor = args.scale_factor
     print(f"Scale factor: {scale_factor:.6f}")
     
     # If widths match, just copy the file
