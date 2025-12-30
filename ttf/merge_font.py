@@ -407,10 +407,16 @@ Example:
         help='Output TTF file (default: output/test{yyyymmddhhmmss}.ttf)'
     )
     
+    parser.add_argument(
+        '--override-datetime',
+        type=str,
+        help='Override timestamp in format yyyymmddhhmmss (default: current datetime)'
+    )
+    
     args = parser.parse_args()
     
     # Generate default font name if needed
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    timestamp = args.override_datetime if args.override_datetime else datetime.now().strftime('%Y%m%d%H%M%S')
     font_name = args.font_name if args.font_name else f"test{timestamp}"
     
     # Replace DATETIME placeholder in font name
@@ -477,7 +483,7 @@ Example:
         sys.exit(1)
     
     # Generate default output path if needed
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    # timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     output_path = args.output if args.output else f"output/test{timestamp}.ttf"
     
     # Replace DATETIME placeholder in output path
