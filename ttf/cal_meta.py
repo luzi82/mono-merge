@@ -10,22 +10,25 @@ import sys
 import yaml
 
 
-def calculate_metadata(input_csv):
+def calculate_metadata(input_height_csv, input_y_csv):
     """
-    Calculate font metadata from a CSV file created by dump_char_csv.py.
+    Calculate font metadata from CSV files created by dump_char_csv.py.
     
     Args:
-        input_csv: Path to input CSV file
+        input_height_csv: Path to input CSV file for determining font height
+        input_y_csv: Path to input CSV file for determining font y position
         
     Returns:
         Dictionary containing calculated metadata
     """
     half_widths = []
     full_widths = []
-    ymin_values = []
-    ymax_values = []
+    ymin_height_values = []
+    ymax_height_values = []
+    ymax_y_values = []
     
-    with open(input_csv, 'r', encoding='utf-8') as f:
+    # Read input_height_csv for advance widths and char height calculation
+    with open(input_height_csv, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Skip empty glyphs
@@ -41,18 +44,34 @@ def calculate_metadata(input_csv):
             else:
                 half_widths.append(advance_width)
             
-            # Collect y bounds
+            # Collect y bounds for height calculation
             ymin = int(row['yMin'])
             ymax = int(row['yMax'])
-            ymin_values.append(ymin)
-            ymax_values.append(ymax)
+            ymin_height_values.append(ymin)
+            ymax_height_values.append(ymax)
+    
+    # Read input_y_csv for y position calculation
+    with open(input_y_csv, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Skip empty glyphs
+            if row.get('is_empty_glyph', 'False') == 'True':
+                continue
+            
+            # Collect max y for ascender calculation
+            ymax = int(row['yMax'])
+            ymax_y_values.append(ymax)
     
     if not half_widths:
-        print("Error: No half-width characters found in CSV", file=sys.stderr)
+        print("Error: No half-width characters found in height CSV", file=sys.stderr)
         sys.exit(1)
     
-    if not ymin_values or not ymax_values:
-        print("Error: No valid glyphs with bounds found in CSV", file=sys.stderr)
+    if not ymin_height_values or not ymax_height_values:
+        print("Error: No valid glyphs with bounds found in height CSV", file=sys.stderr)
+        sys.exit(1)
+    
+    if not ymax_y_values:
+        print("Error: No valid glyphs with bounds found in y CSV", file=sys.stderr)
         sys.exit(1)
     
     # Calculate half_advance_width (most common half-width value)
@@ -61,33 +80,38 @@ def calculate_metadata(input_csv):
     # Calculate full_advance_width (should be half_advance_width * 2)
     full_advance_width = half_advance_width * 2
     
-    # Calculate y bounds
-    min_yMin = min(ymin_values)
-    max_yMax = max(ymax_values)
+    # Calculate y bounds from height CSV
+    min_yMin_height = min(ymin_height_values)
+    max_yMax_height = max(ymax_height_values)
     
-    # Calculate character height
-    char_height = max_yMax - min_yMin
+    # Calculate character height from height CSV
+    char_height = max_yMax_height - min_yMin_height
     
     # Calculate font height (1.2 times character height)
     font_height = char_height * 1.2
     
-    # Calculate ascender and descender
-    # Ascender extends 60%, descender extends 40%
-    # The ascender should extend above max_yMax, and descender should extend below min_yMin
-    # Total extension = font_height - char_height
-    extension = font_height - char_height
-    ascender_extension = extension * 0.6
-    descender_extension = extension * 0.4
+    # Get max y from y CSV
+    max_yMax_y = max(ymax_y_values)
     
-    ascender = max_yMax + ascender_extension
-    descender = min_yMin - descender_extension
+    # Calculate ascender and descender
+    # Ascender extends from max y in y CSV, descender extends from zero
+    # Extension ratio is 1:1 (50% each)
+    # Total extension needed so that (ascender - descender) = font_height
+    # ascender - descender = (max_yMax_y + ext) - (0 - ext) = max_yMax_y + 2*ext = font_height
+    # Therefore: 2*ext = font_height - max_yMax_y, ext = (font_height - max_yMax_y) / 2
+    extension = (font_height - max_yMax_y) / 2
+    ascender_extension = extension
+    descender_extension = extension
+    
+    ascender = max_yMax_y + ascender_extension
+    descender = 0 - descender_extension
     
     # Round to integers
     metadata = {
         'half_advance_width': int(half_advance_width),
         'full_advance_width': int(full_advance_width),
-        'min_yMin': int(min_yMin),
-        'max_yMax': int(max_yMax),
+        'min_yMin': int(min_yMin_height),
+        'max_yMax': int(max_yMax_y),
         'char_height': int(char_height),
         'font_height': float(font_height),
         'ascender': round(ascender),
@@ -99,11 +123,15 @@ def calculate_metadata(input_csv):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Calculate font metadata from a character CSV file.'
+        description='Calculate font metadata from character CSV files.'
     )
     parser.add_argument(
-        'input_font_csv',
-        help='Input CSV file created by dump_char_csv.py (e.g., output/Inconsolata-Regular.ascii.csv)'
+        'input_height_font_csv',
+        help='Input CSV file for determining font height (created by dump_char_csv.py)'
+    )
+    parser.add_argument(
+        'input_y_font_csv',
+        help='Input CSV file for determining font y position (created by dump_char_csv.py)'
     )
     parser.add_argument(
         'output_yaml',
@@ -113,7 +141,7 @@ def main():
     args = parser.parse_args()
     
     # Calculate metadata
-    metadata = calculate_metadata(args.input_font_csv)
+    metadata = calculate_metadata(args.input_height_font_csv, args.input_y_font_csv)
     
     # Write to YAML file
     with open(args.output_yaml, 'w', encoding='utf-8') as f:
