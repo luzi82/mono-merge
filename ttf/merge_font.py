@@ -380,6 +380,13 @@ Example:
     font_name = args.font_name if args.font_name else f"test{timestamp}"
     output_path = args.output if args.output else f"output/test{timestamp}.ttf"
     
+    # Replace DATETIME placeholder in output path and font name
+    if "DATETIME" in output_path:
+        output_path = output_path.replace("DATETIME", timestamp)
+    
+    if "DATETIME" in font_name:
+        font_name = font_name.replace("DATETIME", timestamp)
+    
     # Ensure output directory exists
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
