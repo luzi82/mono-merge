@@ -41,9 +41,6 @@ def dump_font_to_csv(input_ttf, output_csv):
         print("Error: No hmtx table found", file=sys.stderr)
         sys.exit(1)
     
-    # Get units per em for reference
-    units_per_em = head.unitsPerEm if head else None
-    
     # Determine reference width for full-width detection (use space character U+0020)
     reference_width = None
     if 0x0020 in cmap:  # ASCII space
@@ -114,7 +111,6 @@ def dump_font_to_csv(input_ttf, output_csv):
             'is_empty_glyph': is_empty_glyph,
             'is_composite': is_composite,
             'num_contours': num_contours,
-            'units_per_em': units_per_em,
         }
         rows.append(row)
     
@@ -135,7 +131,6 @@ def dump_font_to_csv(input_ttf, output_csv):
         'is_empty_glyph',
         'is_composite',
         'num_contours',
-        'units_per_em',
     ]
     
     try:
