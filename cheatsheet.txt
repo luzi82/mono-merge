@@ -245,3 +245,5 @@ Convert CodeCJK\build.sh to CodeCJK\build.py
 * The script can be run in any folder
 * The script can be run in Linux and windows
 * The output and tmp folders are created in working folder
+
+a09618fdaaa2aef4b7b45e26b7267763

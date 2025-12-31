@@ -28,17 +28,17 @@ my_env = os.environ.copy()
 my_env["PYTHONIOENCODING"] = "utf-8"
 
 OUTPUT_FONT_NAME = "CodeCJK"
-OUTPUT_FONT_VERSION = "004"
+OUTPUT_FONT_VERSION = "005"
 OUTPUT_FONT_FULL_NAME = f"{OUTPUT_FONT_NAME}{OUTPUT_FONT_VERSION}"
 
 SRC_FONT_LIST = [
     {
         "id": "base",
         "type": "download_zip",
-        "zip_url": "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
-        "ttf_path_in_zip": "fonts/ttf/JetBrainsMonoNL-Regular.ttf",
-        "ttf_filename": "JetBrainsMonoNL-Regular.ttf",
-        "ttf_md5": "0dc7ccd81c27e2fca57bebda54e11e09",
+        "zip_url": "https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip",
+        "ttf_path_in_zip": "ttf/FiraCode-Regular.ttf",
+        "ttf_filename": "FiraCode-Regular.ttf",
+        "ttf_md5": "a09618fdaaa2aef4b7b45e26b7267763",
     },
     {
         "id": "cjk",
@@ -236,6 +236,13 @@ def download_fonts(src_font_list, project_root):
                 print(f"Actual: {md5_hash.hexdigest()}")
                 sys.exit(1)
             print(f"MD5 checksum verified: OK")
+        else:
+            # Calculate and print MD5 for reference
+            md5_hash = hashlib.md5()
+            with open(target_ttf, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    md5_hash.update(chunk)
+            print(f"MD5 checksum: {md5_hash.hexdigest()}")
         
         # Copy to {font_id}.ttf for processing
         output_path = Path(f"tmp/{font_id}.ttf")
