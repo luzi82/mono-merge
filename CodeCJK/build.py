@@ -106,7 +106,7 @@ def setup_python_environment(project_root):
     
     # Create virtual environment if it doesn't exist
     if not venv_dir.exists():
-        subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
+        subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True, env=my_env)
     
     # Determine the python executable in the venv
     if platform.system() == "Windows":
@@ -115,11 +115,11 @@ def setup_python_environment(project_root):
         python_exe = venv_dir / "bin" / "python"
     
     # Upgrade pip (use python -m pip instead of calling pip directly)
-    subprocess.run([str(python_exe), "-m", "pip", "install", "--upgrade", "pip"], check=True)
+    subprocess.run([str(python_exe), "-m", "pip", "install", "--upgrade", "pip"], check=True, env=my_env)
     
     # Install requirements
     requirements_file = project_root / "requirements.txt"
-    subprocess.run([str(python_exe), "-m", "pip", "install", "-r", str(requirements_file)], check=True)
+    subprocess.run([str(python_exe), "-m", "pip", "install", "-r", str(requirements_file)], check=True, env=my_env)
     
     print("Python environment setup complete")
     return str(python_exe)
