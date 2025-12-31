@@ -3,7 +3,7 @@
 CodeCJK Font Build Script
 
 This script builds the CodeCJK font by:
-1. Downloading required font files (JetBrains Mono and Noto Sans Mono CJK)
+1. Downloading required font files
 2. Scaling and shifting the CJK font to match the Latin font
 3. Merging the fonts together
 4. Creating variant fonts with different metadata
@@ -90,27 +90,27 @@ py(
 
 # Get the advance_width of char O
 print("Getting advance width of character 'O'...")
-advance_width_o_jb = py(
+base_half_advance_width = py(
     "utils/csv_query.py",
     "tmp/base.char.csv",
     "codepoint_dec", "79",
     "advance_width"
 )
-advance_width_o_noto = py(
+cjk_half_advance_width = py(
     "utils/csv_query.py",
     "tmp/cjk.char.csv",
     "codepoint_dec", "79",
     "advance_width"
 )
-print(f"Advance width of 'O' in JetBrains Mono: {advance_width_o_jb}")
-print(f"Advance width of 'O' in Noto Sans Mono CJK HK: {advance_width_o_noto}")
+print(f"Base half advance width: {base_half_advance_width}")
+print(f"CJK half advance width: {cjk_half_advance_width}")
 
 # Calculate scale factor
-scale_factor = float(advance_width_o_jb) / float(advance_width_o_noto)
+scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width)
 print(f"Scale factor: {scale_factor}")
 
 # Scale Noto Sans Mono CJK HK VF font
-print("Scaling Noto Sans Mono CJK HK VF font...")
+print("Scaling CJK font...")
 py(
     "ttf/scale_ttf.py",
     "tmp/cjk.ttf",
@@ -126,8 +126,8 @@ py(
     "tmp/cjk-Scaled.char.csv"
 )
 
-# Filter ASCII chars from JetBrains Mono
-print("Filtering ASCII characters from JetBrains Mono...")
+# Get ASCII chars from base font
+print("Getting ASCII characters from base font...")
 py(
     "ttf/filter_char_csv.py",
     "tmp/base.char.csv",
@@ -135,8 +135,8 @@ py(
     "tmp/base.ascii.char.csv"
 )
 
-# Filter big chars from JetBrains Mono
-print("Filtering big characters from JetBrains Mono...")
+# Get big chars from JetBrains Mono
+print("Getting big characters from base font...")
 py(
     "ttf/filter_char_csv.py",
     "tmp/base.char.csv",
@@ -144,8 +144,8 @@ py(
     "tmp/base.big.char.csv"
 )
 
-# Filter common CJK chars from scaled Noto Sans Mono CJK HK
-print("Filtering common CJK characters from scaled Noto Sans Mono CJK HK...")
+# Get common CJK chars from scaled CJK font
+print("Getting common CJK characters from scaled CJK font...")
 py(
     "ttf/filter_char_csv.py",
     "tmp/cjk-Scaled.char.csv",
@@ -159,19 +159,19 @@ py(
     "ttf/cal_shift_y.py",
     "tmp/base.big.char.csv",
     "tmp/cjk-Scaled.common_cjk.char.csv",
-    "tmp/shift_y_offset.yaml"
+    "tmp/cjk-Scaled.shift_y_offset.yaml"
 )
 
 # Read shift_y value from YAML using venv Python
 shift_y_value = py(
     "utils/yq.py",
-    "tmp/shift_y_offset.yaml",
+    "tmp/cjk-Scaled.shift_y_offset.yaml",
     "shift_y"
 )
 print(f"Shift Y value: {shift_y_value}")
 
-# Apply shift y to scaled Noto Sans Mono CJK HK VF font
-print("Applying shift Y to scaled Noto Sans Mono CJK HK VF font...")
+# Apply shift y to scaled CJK font
+print("Applying shift Y to scaled CJK font...")
 py(
     "ttf/font_shift_y.py",
     "tmp/cjk-Scaled.ttf",
@@ -187,8 +187,8 @@ py(
     "tmp/cjk-Scaled-Shifted.char.csv"
 )
 
-# Pick chars from JetBrains Mono and shifted scaled Noto Sans Mono CJK HK VF font
-print("Picking characters from JetBrains Mono and shifted scaled Noto Sans Mono CJK HK VF font...")
+# Pick chars from base font and shifted scaled CJK font
+print("Picking characters from base font and shifted scaled CJK font...")
 py(
     "ttf/pick_font.py",
     "tmp/base.char.csv,tmp/cjk-Scaled-Shifted.char.csv",
