@@ -27,15 +27,36 @@ def main():
             if args.pull_column not in reader.fieldnames:
                 sys.exit(1)
 
-            found = False
-            for row in reader:
-                if row[args.search_column] == args.search_value:
-                    print(row[args.pull_column])
-                    found = True
-                    break
-            
-            if not found:
-                sys.exit(1)
+            # Handle __MAX__ special case
+            if args.search_value == "__MAX__":
+                max_row = None
+                max_value = None
+                
+                for row in reader:
+                    try:
+                        current_value = float(row[args.search_column])
+                        if max_value is None or current_value > max_value:
+                            max_value = current_value
+                            max_row = row
+                    except ValueError:
+                        # Skip rows with non-numeric values
+                        continue
+                
+                if max_row is not None:
+                    print(max_row[args.pull_column])
+                else:
+                    sys.exit(1)
+            else:
+                # Original exact match logic
+                found = False
+                for row in reader:
+                    if row[args.search_column] == args.search_value:
+                        print(row[args.pull_column])
+                        found = True
+                        break
+                
+                if not found:
+                    sys.exit(1)
 
     except Exception:
         sys.exit(1)
