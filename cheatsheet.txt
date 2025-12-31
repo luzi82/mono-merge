@@ -238,3 +238,10 @@ Create a script ttf/ttf_unmono.py
 * args
   * input_ttf, output_ttf
 * remove the monospace mark done in ttf/merge_font.py line 311
+
+===
+
+Convert CodeCJK\build.sh to CodeCJK\build.py
+* The script can be run in any folder
+* The script can be run in Linux and windows
+* The output and tmp folders are created in working folder
