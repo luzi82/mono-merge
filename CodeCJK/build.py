@@ -27,9 +27,9 @@ from pathlib import Path
 my_env = os.environ.copy()
 my_env["PYTHONIOENCODING"] = "utf-8"
 
-FONT_NAME = "CodeCJK"
-FONT_VERSION = "004"
-FONT_FULL_NAME = f"{FONT_NAME}{FONT_VERSION}"
+OUTPUT_FONT_NAME = "CodeCJK"
+OUTPUT_FONT_VERSION = "004"
+OUTPUT_FONT_FULL_NAME = f"{OUTPUT_FONT_NAME}{OUTPUT_FONT_VERSION}"
 
 def get_datetime_string():
     """Get current datetime in YYYYMMDDHHMMSS format."""
@@ -398,10 +398,10 @@ def main():
         "tmp/pick.char.csv",
         "tmp/pick.meta.yaml",
         "--input-info-meta-yaml", str(project_root / "CodeCJK/codecjk_meta.yaml"),
-        "--font-name", FONT_FULL_NAME,
-        "--font-version", f"{FONT_VERSION}.{yyyymmddhhmmss}",
+        "--font-name", OUTPUT_FONT_FULL_NAME,
+        "--font-version", f"{OUTPUT_FONT_VERSION}.{yyyymmddhhmmss}",
         "--override-datetime", yyyymmddhhmmss,
-        "--output", f"output/{FONT_FULL_NAME}-Regular.ttf"
+        "--output", f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
     )
     
     # Dump output font char CSV
@@ -409,8 +409,8 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/dump_char_csv.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf",
-        f"tmp/{FONT_FULL_NAME}-Regular.char.csv"
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
+        f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular.char.csv"
     )
     
     # Compare box metrics between output font and picked chars
@@ -418,7 +418,7 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/csv_compare_box.py",
-        f"tmp/{FONT_FULL_NAME}-Regular.char.csv",
+        f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular.char.csv",
         "tmp/pick.char.csv"
     )
     
@@ -427,7 +427,7 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/check_mono_width.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf"
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
     )
     
     # Create preview images
@@ -435,14 +435,14 @@ def main():
     run_python_script(
         python_exe,
         project_root / "font_preview.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf",
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
         "中あ강A2 1Il| 0O",
         "output/preview"
     )
     run_python_script(
         python_exe,
         project_root / "font_preview.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf",
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
         "中あ강A2 1Il| 0O",
         "output/debug",
         "--debug"
@@ -453,43 +453,43 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf",
-        FONT_FULL_NAME,
-        FONT_NAME,
-        f"output/{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
+        OUTPUT_FONT_FULL_NAME,
+        OUTPUT_FONT_NAME,
+        f"output/{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_unmono.py",
-        f"output/{FONT_FULL_NAME}-Regular.ttf",
-        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf"
+        f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
+        f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf",
-        FONT_FULL_NAME,
-        f"P{FONT_FULL_NAME}",
-        f"output/P{FONT_FULL_NAME}-Regular.ttf"
+        f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf",
+        OUTPUT_FONT_FULL_NAME,
+        f"P{OUTPUT_FONT_FULL_NAME}",
+        f"output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf",
-        FONT_FULL_NAME,
-        f"P{FONT_NAME}",
-        f"output/P{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
+        f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf",
+        OUTPUT_FONT_FULL_NAME,
+        f"P{OUTPUT_FONT_NAME}",
+        f"output/P{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
     )
     
     print("\n" + "="*60)
     print("Build completed successfully!")
     print("="*60)
-    print(f"Main output: output/{FONT_FULL_NAME}-Regular.ttf")
-    print(f"Variant with timestamp: output/{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
-    print(f"Proportional variants: output/P{FONT_FULL_NAME}-Regular.ttf, output/P{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
+    print(f"Main output: output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf")
+    print(f"Variant with timestamp: output/{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
+    print(f"Proportional variants: output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf, output/P{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
     print(f"Preview images: output/preview.png, output/debug.png")
 
 
