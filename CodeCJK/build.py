@@ -27,6 +27,10 @@ from pathlib import Path
 my_env = os.environ.copy()
 my_env["PYTHONIOENCODING"] = "utf-8"
 
+FONT_NAME = "CodeCJK"
+FONT_VERSION = "004"
+FONT_FULL_NAME = f"{FONT_NAME}{FONT_VERSION}"
+
 def get_datetime_string():
     """Get current datetime in YYYYMMDDHHMMSS format."""
     return datetime.now().strftime("%Y%m%d%H%M%S")
@@ -394,10 +398,10 @@ def main():
         "tmp/pick.char.csv",
         "tmp/pick.meta.yaml",
         "--input-info-meta-yaml", str(project_root / "CodeCJK/codecjk_meta.yaml"),
-        "--font-name", "CodeCJK004",
-        "--font-version", f"004.{yyyymmddhhmmss}",
+        "--font-name", FONT_FULL_NAME,
+        "--font-version", f"{FONT_VERSION}.{yyyymmddhhmmss}",
         "--override-datetime", yyyymmddhhmmss,
-        "--output", "output/CodeCJK004-Regular.ttf"
+        "--output", f"output/{FONT_FULL_NAME}-Regular.ttf"
     )
     
     # Dump output font char CSV
@@ -405,8 +409,8 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/dump_char_csv.py",
-        "output/CodeCJK004-Regular.ttf",
-        "tmp/CodeCJK004-Regular.char.csv"
+        f"output/{FONT_FULL_NAME}-Regular.ttf",
+        f"tmp/{FONT_FULL_NAME}-Regular.char.csv"
     )
     
     # Compare box metrics between output font and picked chars
@@ -414,7 +418,7 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/csv_compare_box.py",
-        "tmp/CodeCJK004-Regular.char.csv",
+        f"tmp/{FONT_FULL_NAME}-Regular.char.csv",
         "tmp/pick.char.csv"
     )
     
@@ -423,7 +427,7 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/check_mono_width.py",
-        "output/CodeCJK004-Regular.ttf"
+        f"output/{FONT_FULL_NAME}-Regular.ttf"
     )
     
     # Create preview images
@@ -431,14 +435,14 @@ def main():
     run_python_script(
         python_exe,
         project_root / "font_preview.py",
-        "output/CodeCJK004-Regular.ttf",
+        f"output/{FONT_FULL_NAME}-Regular.ttf",
         "中あ강A2 1Il| 0O",
         "output/preview"
     )
     run_python_script(
         python_exe,
         project_root / "font_preview.py",
-        "output/CodeCJK004-Regular.ttf",
+        f"output/{FONT_FULL_NAME}-Regular.ttf",
         "中あ강A2 1Il| 0O",
         "output/debug",
         "--debug"
@@ -449,43 +453,43 @@ def main():
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        "output/CodeCJK004-Regular.ttf",
-        "CodeCJK004",
-        "CodeCJK",
-        f"output/CodeCJK-{yyyymmddhhmmss}-Regular.ttf"
+        f"output/{FONT_FULL_NAME}-Regular.ttf",
+        FONT_FULL_NAME,
+        FONT_NAME,
+        f"output/{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_unmono.py",
-        "output/CodeCJK004-Regular.ttf",
-        "tmp/CodeCJK004-Regular-Unmono.ttf"
+        f"output/{FONT_FULL_NAME}-Regular.ttf",
+        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        "tmp/CodeCJK004-Regular-Unmono.ttf",
-        "CodeCJK004",
-        "PCodeCJK004",
-        "output/PCodeCJK004-Regular.ttf"
+        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf",
+        FONT_FULL_NAME,
+        f"P{FONT_FULL_NAME}",
+        f"output/P{FONT_FULL_NAME}-Regular.ttf"
     )
     
     run_python_script(
         python_exe,
         project_root / "ttf/ttf_replace_meta.py",
-        "tmp/CodeCJK004-Regular-Unmono.ttf",
-        "CodeCJK004",
-        "PCodeCJK",
-        f"output/PCodeCJK-{yyyymmddhhmmss}-Regular.ttf"
+        f"tmp/{FONT_FULL_NAME}-Regular-Unmono.ttf",
+        FONT_FULL_NAME,
+        f"P{FONT_NAME}",
+        f"output/P{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
     )
     
     print("\n" + "="*60)
     print("Build completed successfully!")
     print("="*60)
-    print(f"Main output: output/CodeCJK004-Regular.ttf")
-    print(f"Variant with timestamp: output/CodeCJK-{yyyymmddhhmmss}-Regular.ttf")
-    print(f"Proportional variants: output/PCodeCJK004-Regular.ttf, output/PCodeCJK-{yyyymmddhhmmss}-Regular.ttf")
+    print(f"Main output: output/{FONT_FULL_NAME}-Regular.ttf")
+    print(f"Variant with timestamp: output/{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
+    print(f"Proportional variants: output/P{FONT_FULL_NAME}-Regular.ttf, output/P{FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
     print(f"Preview images: output/preview.png, output/debug.png")
 
 
