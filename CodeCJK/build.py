@@ -31,6 +31,24 @@ OUTPUT_FONT_NAME = "CodeCJK"
 OUTPUT_FONT_VERSION = "004"
 OUTPUT_FONT_FULL_NAME = f"{OUTPUT_FONT_NAME}{OUTPUT_FONT_VERSION}"
 
+SRC_FONT_LIST = [
+    {
+        "id": "base",
+        "type": "download_zip",
+        "zip_url": "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
+        "ttf_path_in_zip": "fonts/ttf/JetBrainsMonoNL-Regular.ttf",
+        "ttf_filename": "JetBrainsMonoNL-Regular.ttf",
+        "ttf_md5": "0dc7ccd81c27e2fca57bebda54e11e09",
+    },
+    {
+        "id": "cjk",
+        "type": "ttf",
+        "ttf_url": "https://github.com/notofonts/noto-cjk/raw/refs/heads/main/Sans/Variable/TTF/Mono/NotoSansMonoCJKhk-VF.ttf",
+        "ttf_filename": "NotoSansMonoCJKhk-VF.ttf",
+        "ttf_md5": "ffde7dc37f0754c486b1cc5486a7ae93",
+    },
+]
+
 def get_datetime_string():
     """Get current datetime in YYYYMMDDHHMMSS format."""
     return datetime.now().strftime("%Y%m%d%H%M%S")
@@ -75,28 +93,6 @@ def check_md5(file_path, expected_hash):
         for chunk in iter(lambda: f.read(4096), b""):
             md5_hash.update(chunk)
     return md5_hash.hexdigest() == expected_hash
-
-
-def verify_md5_checksums(md5_file):
-    """Verify MD5 checksums from a file."""
-    print(f"Checking MD5 checksums from {md5_file}")
-    with open(md5_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split()
-            if len(parts) >= 2:
-                expected_hash = parts[0]
-                file_path = ' '.join(parts[1:])
-                if not os.path.exists(file_path):
-                    print(f"ERROR: File not found: {file_path}")
-                    sys.exit(1)
-                if not check_md5(file_path, expected_hash):
-                    print(f"ERROR: MD5 mismatch for {file_path}")
-                    sys.exit(1)
-                print(f"OK: {file_path}")
-    print("All MD5 checksums verified")
 
 
 def setup_python_environment(project_root):
@@ -167,6 +163,86 @@ def read_yaml_value(yaml_file, key):
     return data.get(key)
 
 
+def download_fonts(src_font_list, project_root):
+    """Download and prepare fonts based on SRC_FONT_LIST configuration.
+    
+    Args:
+        src_font_list: List of font configuration dictionaries
+        project_root: Path to the project root directory
+        
+    Returns:
+        None. Downloads and copies fonts to tmp/{font_id}.ttf
+    """
+    for font_config in src_font_list:
+        font_id = font_config["id"]
+        font_type = font_config["type"]
+        ttf_filename = font_config["ttf_filename"]
+        expected_md5 = font_config.get("ttf_md5")
+        
+        print(f"\n--- Processing font: {font_id} ---")
+        
+        # Target TTF file in tmp folder
+        target_ttf = Path(f"tmp/{ttf_filename}")
+        
+        if not target_ttf.exists():
+            # Check if file exists in input folder
+            input_ttf = project_root / "input" / ttf_filename
+            if input_ttf.exists():
+                print(f"Found {input_ttf}, copying to {target_ttf}")
+                shutil.copy(input_ttf, target_ttf)
+            else:
+                if font_type == "download_zip":
+                    # Handle zip download type
+                    zip_url = font_config["zip_url"]
+                    ttf_path_in_zip = font_config["ttf_path_in_zip"]
+                    
+                    # Extract zip filename from URL
+                    zip_filename = zip_url.split("/")[-1]
+                    zip_path = Path(f"tmp/{zip_filename}")
+                    
+                    # Download zip if not exists
+                    if not zip_path.exists():
+                        download_file(zip_url, zip_path)
+                    
+                    # Extract zip
+                    extract_dir_name = zip_filename.replace(".zip", "")
+                    extract_dir = Path(f"tmp/{extract_dir_name}")
+                    extract_zip(zip_path, extract_dir)
+                    
+                    # Copy TTF file from extracted location
+                    extracted_ttf = extract_dir / ttf_path_in_zip
+                    shutil.copy(extracted_ttf, target_ttf)
+                    
+                elif font_type == "ttf":
+                    # Handle direct TTF download
+                    ttf_url = font_config["ttf_url"]
+                    download_file(ttf_url, target_ttf)
+                else:
+                    raise ValueError(f"Unknown font type: {font_type}")
+        else:
+            print(f"{target_ttf} already exists, skipping download")
+        
+        # Verify MD5 checksum if specified
+        if expected_md5:
+            print(f"Verifying MD5 checksum for {target_ttf}")
+            if not check_md5(target_ttf, expected_md5):
+                print(f"ERROR: MD5 mismatch for {target_ttf}")
+                print(f"Expected: {expected_md5}")
+                # Calculate actual MD5 for error message
+                md5_hash = hashlib.md5()
+                with open(target_ttf, "rb") as f:
+                    for chunk in iter(lambda: f.read(4096), b""):
+                        md5_hash.update(chunk)
+                print(f"Actual: {md5_hash.hexdigest()}")
+                sys.exit(1)
+            print(f"MD5 checksum verified: OK")
+        
+        # Copy to {font_id}.ttf for processing
+        output_path = Path(f"tmp/{font_id}.ttf")
+        print(f"Copying {target_ttf} to {output_path}")
+        shutil.copy(target_ttf, output_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Build CodeCJK font')
     parser.add_argument('--clean', action='store_true', help='Clean output and tmp folders before building')
@@ -193,53 +269,8 @@ def main():
     # Create folders
     create_folders()
     
-    # Download JetBrains Mono font if not exists
-    jetbrains_ttf = Path("tmp/JetBrainsMonoNL-Regular.ttf")
-    if not jetbrains_ttf.exists():
-        # Check if file exists in input folder
-        input_jetbrains_ttf = project_root / "input" / "JetBrainsMonoNL-Regular.ttf"
-        if input_jetbrains_ttf.exists():
-            print(f"Found {input_jetbrains_ttf}, copying to {jetbrains_ttf}")
-            shutil.copy(input_jetbrains_ttf, jetbrains_ttf)
-        else:
-            jetbrains_zip = Path("tmp/JetBrainsMono-2.304.zip")
-            if not jetbrains_zip.exists():
-                download_file(
-                    "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
-                    jetbrains_zip
-                )
-            extract_zip(jetbrains_zip, "tmp/JetBrainsMono-2.304")
-            shutil.copy(
-                "tmp/JetBrainsMono-2.304/fonts/ttf/JetBrainsMonoNL-Regular.ttf",
-                jetbrains_ttf
-            )
-    
-    # Copy to base.ttf
-    print(f"Copying {jetbrains_ttf} to tmp/base.ttf")
-    shutil.copy(jetbrains_ttf, "tmp/base.ttf")
-    
-    # Download Noto Sans Mono CJK HK VF font if not exists
-    noto_ttf = Path("tmp/NotoSansMonoCJKhk-VF.ttf")
-    if not noto_ttf.exists():
-        # Check if file exists in input folder
-        input_noto_ttf = project_root / "input" / "NotoSansMonoCJKhk-VF.ttf"
-        if input_noto_ttf.exists():
-            print(f"Found {input_noto_ttf}, copying to {noto_ttf}")
-            shutil.copy(input_noto_ttf, noto_ttf)
-        else:
-            download_file(
-                "https://github.com/notofonts/noto-cjk/raw/refs/heads/main/Sans/Variable/TTF/Mono/NotoSansMonoCJKhk-VF.ttf",
-                noto_ttf
-            )
-            
-    # Copy to cjk.ttf
-    print(f"Copying {noto_ttf} to tmp/cjk.ttf")
-    shutil.copy(noto_ttf, "tmp/cjk.ttf")
-    
-    # Check MD5 checksums
-    md5_file = script_dir / "input_files.md5"
-    if md5_file.exists():
-        verify_md5_checksums(md5_file)
+    # Download and prepare fonts (includes MD5 verification)
+    download_fonts(SRC_FONT_LIST, project_root)
     
     # Set up Python environment
     python_exe = setup_python_environment(project_root)
