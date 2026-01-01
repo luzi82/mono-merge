@@ -75,9 +75,11 @@ def check_md5(file_path, expected_hash):
     return md5_hash.hexdigest() == expected_hash
 
 
-def setup_python_environment(project_root):
+def setup_python_environment():
     """Set up Python virtual environment and install dependencies."""
     global _python_exe
+
+    project_root = get_project_root()
 
     print("Setting up Python environment...")
     venv_dir = Path("tmp/venv")
@@ -158,16 +160,17 @@ def read_yaml_value(yaml_file, key):
     return data.get(key)
 
 
-def download_fonts(src_font_list, project_root):
+def download_fonts(src_font_list):
     """Download and prepare fonts based on SRC_FONT_LIST configuration.
     
     Args:
         src_font_list: List of font configuration dictionaries
-        project_root: Path to the project root directory
         
     Returns:
         None. Downloads and copies fonts to tmp/{font_id}.ttf
     """
+    project_root = get_project_root()
+
     for font_config in src_font_list:
         font_id = font_config["id"]
         font_type = font_config["type"]
@@ -243,3 +246,33 @@ def download_fonts(src_font_list, project_root):
         output_path = Path(f"tmp/{font_id}.ttf")
         print(f"Copying {target_ttf} to {output_path}")
         shutil.copy(target_ttf, output_path)
+
+
+def check_font(ttf_path):
+    """Check if a font file is valid using ots-sanitize on Linux.
+    
+    Args:
+        ttf_path: Path to the font file to check
+        
+    Raises:
+        RuntimeError: If the font validation fails on Linux
+    """
+    if platform.system() == "Linux":
+        try:
+            print(f"Checking font: {ttf_path}")
+            result = subprocess.run(
+                ["ots-sanitize", str(ttf_path)],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            print(f"Font validation passed: {ttf_path}")
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Font validation failed for {ttf_path}"
+            if e.stderr:
+                error_msg += f"\n{e.stderr}"
+            raise RuntimeError(error_msg) from e
+        except FileNotFoundError:
+            raise RuntimeError("ots-sanitize command not found. Please install ots-tools.") from None
+    else:
+        print(f"Skipping font validation on {platform.system()} platform: {ttf_path}")
