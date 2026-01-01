@@ -104,7 +104,9 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
                 # Record reference relationship
                 glyphref_rows.append({
                     'ref_from': glyph_name,
-                    'ref_to': component.glyphName
+                    'ref_from_index': font.getGlyphID(glyph_name),
+                    'ref_to': component.glyphName,
+                    'ref_to_index': font.getGlyphID(component.glyphName)
                 })
                 glyph_num_refs[glyph_name] += 1
     
@@ -168,6 +170,9 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
     glyph_rows = []
     glyph_data_dict = {}  # Dictionary for fast lookup by glyph_name
     for glyph_name in all_glyph_names:
+        # Get glyph index
+        glyph_index = font.getGlyphID(glyph_name)
+        
         # Check if glyph exists in tables
         has_hmtx = glyph_name in hmtx.metrics
         has_vmtx = vmtx is not None and glyph_name in vmtx.metrics
@@ -213,6 +218,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
         # Build glyph data
         glyph_data = {
             'glyph_name': glyph_name,
+            'glyph_index': glyph_index,
             'advance_width': advance_width,
             'lsb': lsb,
             'xMin': xMin,
@@ -251,6 +257,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
         if glyph_name in glyph_data_dict:
             glyph_data = glyph_data_dict[glyph_name]
             row.update({
+                'glyph_index': glyph_data['glyph_index'],
                 'advance_width': glyph_data['advance_width'],
                 'lsb': glyph_data['lsb'],
                 'xMin': glyph_data['xMin'],
@@ -327,16 +334,17 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
                         for glyph in subtable.ClassDef2.classDefs.keys():
                             glyphs_gpos_count[glyph] += 1
     
-    # Sort glyph rows by glyph_name for consistent output
-    glyph_rows.sort(key=lambda x: x['glyph_name'])
+    # Sort glyph rows by glyph_index for consistent output
+    glyph_rows.sort(key=lambda x: x['glyph_index'])
     
-    # Sort glyphref rows by ref_from, then ref_to
-    glyphref_rows.sort(key=lambda x: (x['ref_from'], x['ref_to']))
+    # Sort glyphref rows by ref_from_index
+    glyphref_rows.sort(key=lambda x: x['ref_from_index'])
     
     # Write codepoint CSV
     codepoint_fieldnames = [
         'codepoint',
         'codepoint_dec',
+        'glyph_index',
         'glyph_name',
         'advance_width',
         'lsb',
@@ -373,6 +381,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
     
     # Write glyph CSV
     glyph_fieldnames = [
+        'glyph_index',
         'glyph_name',
         'advance_width',
         'lsb',
@@ -408,7 +417,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_g
         sys.exit(1)
     
     # Write glyphref CSV
-    glyphref_fieldnames = ['ref_from', 'ref_to']
+    glyphref_fieldnames = ['ref_from_index', 'ref_from', 'ref_to_index', 'ref_to']
     
     try:
         with open(output_glyphref_csv, 'w', newline='', encoding='utf-8') as csvfile:
