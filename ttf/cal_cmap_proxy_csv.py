@@ -10,9 +10,9 @@ def main():
     )
     parser.add_argument('input_codepoint_csv', help='Input codepoint CSV file')
     parser.add_argument('input_glyph_csv', help='Input glyph CSV file')
+    parser.add_argument('output_cmapproxy_csv', help='Output CSV containing only changed glyph names')
     parser.add_argument('output_codepoint_csv', help='Output codepoint CSV file')
     parser.add_argument('output_glyph_csv', help='Output glyph CSV file')
-    parser.add_argument('output_cmapproxy_csv', help='Output CSV containing only changed glyph names')
     
     args = parser.parse_args()
     
