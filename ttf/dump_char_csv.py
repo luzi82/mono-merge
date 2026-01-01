@@ -37,14 +37,15 @@ def calculate_width_unit(advance_width, reference_width):
         n += 1
 
 
-def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
+def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv, output_glyphref_csv):
     """
-    Extract character information from TTF file and write to two CSV files.
+    Extract character information from TTF file and write to three CSV files.
     
     Args:
         input_ttf: Path to input TTF file
         output_codepoint_csv: Path to output codepoint mapping CSV file
         output_glyph_csv: Path to output glyph metrics CSV file
+        output_glyphref_csv: Path to output glyph reference relationship CSV file
     """
     try:
         font = TTFont(input_ttf)
@@ -60,6 +61,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
     
     glyf = font.get('glyf')
     hmtx = font.get('hmtx')
+    vmtx = font.get('vmtx')
     head = font.get('head')
     
     if not glyf:
@@ -91,11 +93,20 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
     
     # Track which glyphs are used as components in composite glyphs
     glyphs_glyf_count = Counter()
+    # Track composite glyph references and count references per glyph
+    glyphref_rows = []
+    glyph_num_refs = Counter()  # Count how many glyphs each glyph references
     for glyph_name in glyf.keys():
         glyph = glyf[glyph_name]
         if glyph.isComposite():
             for component in glyph.components:
                 glyphs_glyf_count[component.glyphName] += 1
+                # Record reference relationship
+                glyphref_rows.append({
+                    'ref_from': glyph_name,
+                    'ref_to': component.glyphName
+                })
+                glyph_num_refs[glyph_name] += 1
     
     # Track which glyphs are used in GSUB table
     glyphs_gsub_count = Counter()
@@ -159,6 +170,7 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
     for glyph_name in all_glyph_names:
         # Check if glyph exists in tables
         has_hmtx = glyph_name in hmtx.metrics
+        has_vmtx = vmtx is not None and glyph_name in vmtx.metrics
         has_glyf = glyph_name in glyf
         cmap_used = glyphs_cmap_count[glyph_name]
         glyf_used = glyphs_glyf_count[glyph_name]
@@ -195,6 +207,9 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
         # Calculate width_unit
         width_unit = calculate_width_unit(advance_width, reference_width)
         
+        # Get number of glyphs this glyph references
+        num_glyph = glyph_num_refs[glyph_name]
+        
         # Build glyph data
         glyph_data = {
             'glyph_name': glyph_name,
@@ -210,12 +225,14 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
             'is_empty_glyph': is_empty_glyph,
             'is_composite': is_composite,
             'num_contours': num_contours,
+            'num_glyph': num_glyph,
             'cmap_used': cmap_used,
             'glyf_used': glyf_used,
             'gsub_used': gsub_used,
             'gpos_used': gpos_used,
             'has_glyf': has_glyf,
             'has_hmtx': has_hmtx,
+            'has_vmtx': has_vmtx,
         }
         glyph_rows.append(glyph_data)
         glyph_data_dict[glyph_name] = glyph_data
@@ -246,12 +263,14 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
                 'is_empty_glyph': glyph_data['is_empty_glyph'],
                 'is_composite': glyph_data['is_composite'],
                 'num_contours': glyph_data['num_contours'],
+                'num_glyph': glyph_data['num_glyph'],
                 'cmap_used': glyph_data['cmap_used'],
                 'glyf_used': glyph_data['glyf_used'],
                 'gsub_used': glyph_data['gsub_used'],
                 'gpos_used': glyph_data['gpos_used'],
                 'has_glyf': glyph_data['has_glyf'],
                 'has_hmtx': glyph_data['has_hmtx'],
+                'has_vmtx': glyph_data['has_vmtx'],
             })
         codepoint_rows.append(row)
     
@@ -311,6 +330,9 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
     # Sort glyph rows by glyph_name for consistent output
     glyph_rows.sort(key=lambda x: x['glyph_name'])
     
+    # Sort glyphref rows by ref_from, then ref_to
+    glyphref_rows.sort(key=lambda x: (x['ref_from'], x['ref_to']))
+    
     # Write codepoint CSV
     codepoint_fieldnames = [
         'codepoint',
@@ -328,12 +350,14 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
         'is_empty_glyph',
         'is_composite',
         'num_contours',
+        'num_glyph',
         'cmap_used',
         'glyf_used',
         'gsub_used',
         'gpos_used',
         'has_glyf',
         'has_hmtx',
+        'has_vmtx',
     ]
     
     try:
@@ -362,12 +386,14 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
         'is_empty_glyph',
         'is_composite',
         'num_contours',
+        'num_glyph',
         'cmap_used',
         'glyf_used',
         'gsub_used',
         'gpos_used',
         'has_glyf',
         'has_hmtx',
+        'has_vmtx',
     ]
     
     try:
@@ -379,6 +405,20 @@ def dump_font_to_csv(input_ttf, output_codepoint_csv, output_glyph_csv):
         print(f"Successfully wrote {len(glyph_rows)} glyphs to {output_glyph_csv}")
     except Exception as e:
         print(f"Error writing glyph CSV file: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Write glyphref CSV
+    glyphref_fieldnames = ['ref_from', 'ref_to']
+    
+    try:
+        with open(output_glyphref_csv, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=glyphref_fieldnames)
+            writer.writeheader()
+            writer.writerows(glyphref_rows)
+        
+        print(f"Successfully wrote {len(glyphref_rows)} glyph references to {output_glyphref_csv}")
+    except Exception as e:
+        print(f"Error writing glyphref CSV file: {e}", file=sys.stderr)
         sys.exit(1)
     
     font.close()
@@ -400,9 +440,13 @@ def main():
         "output_glyph_csv",
         help="Path to output glyph metrics CSV file"
     )
+    parser.add_argument(
+        "output_glyphref_csv",
+        help="Path to output glyph reference relationship CSV file"
+    )
     
     args = parser.parse_args()
-    dump_font_to_csv(args.input_ttf, args.output_codepoint_csv, args.output_glyph_csv)
+    dump_font_to_csv(args.input_ttf, args.output_codepoint_csv, args.output_glyph_csv, args.output_glyphref_csv)
 
 
 if __name__ == "__main__":
