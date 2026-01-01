@@ -434,19 +434,28 @@ def main():
     )
     parser.add_argument(
         "output_codepoint_csv",
-        help="Path to output codepoint mapping CSV file"
+        nargs='?',
+        help="Path to output codepoint mapping CSV file (default: input_ttf.codepoint.csv)"
     )
     parser.add_argument(
         "output_glyph_csv",
-        help="Path to output glyph metrics CSV file"
+        nargs='?',
+        help="Path to output glyph metrics CSV file (default: input_ttf.glyph.csv)"
     )
     parser.add_argument(
         "output_glyphref_csv",
-        help="Path to output glyph reference relationship CSV file"
+        nargs='?',
+        help="Path to output glyph reference relationship CSV file (default: input_ttf.glyphref.csv)"
     )
     
     args = parser.parse_args()
-    dump_font_to_csv(args.input_ttf, args.output_codepoint_csv, args.output_glyph_csv, args.output_glyphref_csv)
+    
+    # Set default output filenames if not provided
+    output_codepoint_csv = args.output_codepoint_csv or f"{args.input_ttf}.codepoint.csv"
+    output_glyph_csv = args.output_glyph_csv or f"{args.input_ttf}.glyph.csv"
+    output_glyphref_csv = args.output_glyphref_csv or f"{args.input_ttf}.glyphref.csv"
+    
+    dump_font_to_csv(args.input_ttf, output_codepoint_csv, output_glyph_csv, output_glyphref_csv)
 
 
 if __name__ == "__main__":
