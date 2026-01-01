@@ -66,21 +66,21 @@ def main():
         writer.writeheader()
         writer.writerows(glyph_rows)
     
-    # Process codepoint CSV and add new_glyph_name column
+    # Process codepoint CSV and update num_glyph with new_glyph_name
     with open(args.input_codepoint_csv, 'r', newline='', encoding='utf-8') as f_in:
         reader = csv.DictReader(f_in)
         codepoint_fieldnames = reader.fieldnames
         
         with open(args.output_codepoint_csv, 'w', newline='', encoding='utf-8') as f_out:
-            output_codepoint_fieldnames = list(codepoint_fieldnames) + ['new_glyph_name']
-            writer = csv.DictWriter(f_out, fieldnames=output_codepoint_fieldnames)
+            writer = csv.DictWriter(f_out, fieldnames=codepoint_fieldnames)
             writer.writeheader()
             
             for row in reader:
                 glyph_name = row['glyph_name']
                 # Look up the new_glyph_name from the glyph mapping
                 new_glyph_name = glyph_name_map.get(glyph_name, glyph_name)
-                row['new_glyph_name'] = new_glyph_name
+                # Update num_glyph with new_glyph_name
+                row['num_glyph'] = new_glyph_name
                 writer.writerow(row)
     
     # Write output_cmapproxy_csv containing only changed glyphs
