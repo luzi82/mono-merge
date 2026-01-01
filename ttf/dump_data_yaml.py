@@ -164,7 +164,16 @@ def dump_post_table(font):
             continue
         
         try:
-            result[attr_name] = getattr(post, attr_name)
+            attr_value = getattr(post, attr_name)
+            # Hide extraNames and glyphOrder, replace with length counters
+            if attr_name == 'extraNames':
+                if attr_value:
+                    result['extraNames_len'] = len(attr_value)
+            elif attr_name == 'glyphOrder':
+                if attr_value:
+                    result['glyphOrder_len'] = len(attr_value)
+            else:
+                result[attr_name] = attr_value
         except Exception:
             pass
     
@@ -276,8 +285,6 @@ def dump_glyph_summary(font):
     
     result = {
         'total_glyphs': len(glyph_order),
-        'first_10_glyphs': glyph_order[:10],
-        'last_10_glyphs': glyph_order[-10:] if len(glyph_order) > 10 else glyph_order,
     }
     
     # Count generic glyph names
