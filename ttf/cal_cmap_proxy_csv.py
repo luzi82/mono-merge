@@ -39,6 +39,8 @@ def main():
                 new_row['glyph_name'] = new_glyph_name
                 new_row['glyf_used'] = '0'
                 new_row['num_glyph'] = '1'
+                new_row['is_composite'] = 'True'
+                new_row['num_contours'] = '-1'
                 glyph_rows.append(new_row)
                 
                 # Update the original row to set cmap_used = 0 and increment glyf_used
@@ -66,7 +68,7 @@ def main():
         writer.writeheader()
         writer.writerows(glyph_rows)
     
-    # Process codepoint CSV and update num_glyph with new_glyph_name
+    # Process codepoint CSV and update glyph_name to new_glyph_name
     with open(args.input_codepoint_csv, 'r', newline='', encoding='utf-8') as f_in:
         reader = csv.DictReader(f_in)
         codepoint_fieldnames = reader.fieldnames
@@ -79,8 +81,16 @@ def main():
                 glyph_name = row['glyph_name']
                 # Look up the new_glyph_name from the glyph mapping
                 new_glyph_name = glyph_name_map.get(glyph_name, glyph_name)
-                # Update num_glyph with new_glyph_name
-                row['num_glyph'] = new_glyph_name
+                # Update glyph_name with new_glyph_name
+                row['glyph_name'] = new_glyph_name
+                
+                # If this is a cmapproxy replaced row, update composite info
+                if new_glyph_name != glyph_name:
+                    row['is_composite'] = 'True'
+                    row['num_contours'] = '-1'
+                    row['glyf_used'] = '0'
+                    row['num_glyph'] = '1'
+                
                 writer.writerow(row)
     
     # Write output_cmapproxy_csv containing only changed glyphs
