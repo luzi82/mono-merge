@@ -247,3 +247,363 @@ Convert CodeCJK\build.sh to CodeCJK\build.py
 * The output and tmp folders are created in working folder
 
 a09618fdaaa2aef4b7b45e26b7267763
+
+===
+
+create ttf/cal_x_shift_csv.py
+* args
+  * input_csv
+  * advance_width
+  * output_csv
+* for half width char, new_advance_width = advance_width
+* for full width char, new_advance_width = advance_width * 2
+* shift_x = (new_advance_width-old_advance_width)/2
+* put shift_x column and new_advance_width to csv
+
+
+create ttf/modify_advance_width.py
+* args
+  * input_ttf
+  * input_shift_x_csv
+    * created by ttf/cal_x_shift_csv.py
+  * output_ttf
+* update the advance_width and x position of each char
+
+python \
+  ttf/modify_advance_width.py \
+  CodeCJK/build/tmp/patch0.scaled.ttf \
+  "CodeCJK/build/tmp/patch0.scaled.char.shift_x.csv" \
+  "CodeCJK/build/tmp/patch0.scaled.aw.ttf"
+
+===
+
+modify ttf/dump_char_csv.py
+* new arg list:
+  * input_ttf
+  * output_codepoint_csv
+  * output_glyph_csv
+  * remove output_csv
+* output_codepoint_csv contains:
+  * codepoint
+  * codepoint_dec
+  * glyph_name
+* output_glyph_csv contains:
+  * glyph_name
+  * advance_width
+  * lsb
+  * xMin
+  * yMin
+  * xMax
+  * yMax
+  * width
+  * height
+  * width_count
+    * if advance_width <= 0, 0
+    * if advance_width <= (1*2)**0.5, 1
+    * if advance_width <= (2*3)**0.5, 2
+    * if advance_width <= (3*4)**0.5, 3
+    * ...etc
+  * is_empty_glyph
+  * is_composite
+  * num_contours
+  
+python \
+  ttf/dump_char_csv.py \
+  "CodeCJK/build/tmp/base.ttf" \
+  "CodeCJK/build/tmp/base.codepoint.csv" \
+  "CodeCJK/build/tmp/base.glyph.csv"
+  
+create ttf/ttf_rm_unused_table.py
+* args:
+  * input_ttf, output_ttf
+* delete gpos, gsub table
+
+create ttf/glyphcsv_used_mark_rm.py
+* args:
+  * input_csv
+    * a csv created by ttf/dump_char_csv.py
+    * example: CodeCJK/build/tmp/base.ttf.glyph.csv
+  * output_csv
+* if (cmap_used=0 and glyf_used=0), rm=1, else rm=0
+
+create ttf/ttf_rm_glyph.py
+* args:
+  * input_ttf
+  * input_rm_glyph_csv
+    * csv created by ttf/glyphcsv_used_mark_rm.py
+  * output_ttf
+* if rm=1, remove the glyph
+
+.venv/bin/python "ttf/ttf_rm_glyph.py" \
+        "CodeCJK/build/tmp/tmp1.ttf" \
+        "CodeCJK/build/tmp/base.ttf.glyph.rm.csv" \
+        "CodeCJK/build/tmp/tmp2.ttf"
+
+.venv/bin/python \
+  /home/luzi82/project/mono-merge/ttf/dump_char_csv.py \
+  CodeCJK/build/tmp/tmp2.ttf \
+  CodeCJK/build/tmp/tmp2.ttf.codepoint.csv \
+  CodeCJK/build/tmp/tmp2.ttf.glyph.csv
+
+
+create new script ttf/cal_cmap_proxy_csv.py
+* args:
+  * input_codepoint_csv, eg. CodeCJK/build/tmp/cjk.z00.03.rut.rg.ttf.codepoint.csv
+  * input_glyph_csv, eg. CodeCJK/build/tmp/cjk.z00.03.rut.rg.ttf.glyph.csv
+  * output_codepoint_csv
+  * output_glyph_csv
+* in output_glyph_csv
+  * for glyph which is both:
+    * cmap_used >= 1
+    * glyf_used >= 1
+  * new_glyph_name = glyph_name + ".cmapproxy"
+  * otherwise, new_glyph_name = glyph_name
+* in output_codepoint_csv
+  * add column new_glyph_name, refact to output_glyph_csv new_glyph_name
+
+
+create new arg output_new_glyph_csv
+for all glyph_name changes, put into the csv
+column: old_glyph_name, new_glyph_name
+
+rename output_new_glyph_csv to output_cmapproxy_csv
+
+remove new_glyph_name from output_glyph_csv
+but output_codepoint_csv still keep the new_glyph_name value
+
+update output_glyph_csv:
+* for glyph which is both:
+  * cmap_used >= 1
+  * glyf_used >= 1
+* create a new glyph_name row
+  * glyph_name = glyph_name + ".cmapproxy"
+  * glyf_used = 0
+  * other value follow old row
+* update old row
+  * cmap_used = 0
+
+change ttf/cal_cmap_proxy_csv.py
+* output_codepoint_csv
+  * glyph_name = new_glyph_name
+  * remove new_glyph_name
+
+update output_codepoint_csv output:
+* for cmapproxy replaced row:
+  * is_composite = True
+  * num_contours = -1
+
+update output_glyph_csv output:
+* for cmapproxy replaced row:
+  * num_contours = True
+  * num_contours = -1
+
+.venv/bin/python \
+  "ttf/cal_cmap_proxy_csv.py" \
+  "CodeCJK/build/tmp/patch0.z00.03.rut.rg.ttf.codepoint.csv" \
+  "CodeCJK/build/tmp/patch0.z00.03.rut.rg.ttf.glyph.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.cmapproxy.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.codepoint.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.glyph.csv"
+
+create new script ttf_apply_cmapproxy.py
+* args
+  * input_ttf
+  * input_cmapproxy_csv
+    * created by ttf/cal_cmap_proxy_csv.py output_cmapproxy_csv
+    * eg. CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.cmapproxy.csv
+  * output_ttf
+* for each row in input_cmapproxy_csv
+  * in glyf table, create new composite glyf, glyph_name=new_glyph_name, identical point to old_glyph_name
+* for each codepoint, if the glyf is in old_glyph_name, update to new_glyph_name
+
+.venv/bin/python \
+  "ttf/ttf_apply_cmapproxy.py" \
+  "CodeCJK/build/tmp/patch0.z00.03.rut.rg.ttf" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.cmapproxy.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf"
+
+.venv/bin/python \
+  "ttf/dump_char_csv.py" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.codepoint.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.glyph.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.glyphref.csv"
+
+diff \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.codepoint.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.codepoint.csv"
+
+diff \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.glyph.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.glyph.csv"
+
+
+===
+
+.venv/bin/python \
+        "ttf/ttf_rm_glyph.py" \
+        "CodeCJK/build/tmp/cjk.z00.01.rut.ttf" \
+        "CodeCJK/build/tmp/cjk.z00.02.rm_glyph.csv" \
+        "CodeCJK/build/tmp/cjk.z00.03.rut.rg.ttf"
+
+ots-sanitize "CodeCJK/build/tmp/cjk.z00.03.rut.rg.ttf"
+
+===
+
+create a script in utils/diff.py
+* args:
+  * FILE1, FILE2
+* print out a diff format output, just like "diff FILE1 FILE2"
+* if same return 0, if diff return 1, if trouble or else return 2
+
+.venv/bin/python \
+  "utils/diff.py" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.cmapproxy.ttf.codepoint.csv" \
+  "CodeCJK/build/tmp/patch0.z00.xx.rut.rg.ttf.glyph.csv"
+
+diff tmp/diff0.txt tmp/diff1.txt
+
+.venv/bin/python \
+  "utils/diff.py" \
+  tmp/diff0.txt tmp/diff1.txt
+
+===
+
+create a script ttf/ttf_glyphname_suffix.py
+* args:
+  * input_ttf
+  * suffix
+  * output_ttf
+* add suffix to all glyph names
+
+.venv/bin/python \
+  "ttf/ttf_glyphname_suffix.py" \
+  "CodeCJK/build/tmp/cjk.z00.06.cmapproxy.ttf" \
+  ".cjk" \
+  "CodeCJK/build/tmp/cjk.z00.07.suffix.ttf"
+
+.venv/bin/python \
+  "ttf/dump_char_csv.py" \
+  "CodeCJK/build/tmp/cjk.z00.07.suffix.ttf"
+
+ots-sanitize "CodeCJK/build/tmp/base.z00.07.suffix.ttf"
+
+===
+
+create a script ttf/ttf_post3.py
+* args
+  * input_ttf, output_ttf
+* convert post table formatType to 3
+
+python ttf/ttf_post3.py \
+  "CodeCJK/build/tmp/cjk.z00.01.ttf" \
+  "CodeCJK/build/tmp/cjk.z00.02.ttf" \
+
+python ttf/ttf_post3.py \
+  "CodeCJK/build/tmp/base.z00.01.ttf" \
+  "CodeCJK/build/tmp/base.z00.02.ttf" \
+
+python ttf/ttf_post3.py \
+  "CodeCJK/build/tmp/patch0.z00.01.ttf" \
+  "CodeCJK/build/tmp/patch0.z00.02.ttf" \
+
+ots-sanitize "CodeCJK/build/tmp/cjk.z00.02.ttf"
+ots-sanitize "CodeCJK/build/tmp/base.z00.02.ttf"
+ots-sanitize "CodeCJK/build/tmp/patch0.z00.02.ttf"
+
+===
+
+change ttf/ttf_apply_cmapproxy.py
+* input_cmapproxy_csv is created by ttf/cal_cmap_proxy_csv.py output_cmapproxy_csv
+  * example: CodeCJK/build/tmp/patch0.z00.05.cmapproxy.csv
+* no longer set glyph name for new glyf data
+* no longer use formatType 2.0, keep 3.0
+  * if source formatType is not 3.0, raise exception
+* for each row in input_cmapproxy_csv, create proxy composite glyf
+* update cmap codepoint to proxy glyf if exist in input_cmapproxy_csv
+
+python \
+            "ttf/ttf_apply_cmapproxy.py" \
+            "CodeCJK/build/tmp/patch0.z00.04.ttf" \
+            "CodeCJK/build/tmp/patch0.z00.05.cmapproxy.csv" \
+            "CodeCJK/build/tmp/patch0.z00.06.ttf"
+
+
+ots-sanitize "CodeCJK/build/tmp/patch0.z00.06.ttf"
+
+diff \
+  CodeCJK/build/tmp/patch0.z00.06.ttf.codepoint.csv \
+  CodeCJK/build/tmp/patch0.z00.05.expect.codepoint.csv
+
+diff \
+  CodeCJK/build/tmp/patch0.z00.06.ttf.glyph.csv \
+  CodeCJK/build/tmp/patch0.z00.05.expect.glyph.csv
+
+===
+
+create a new python script utils/csv_rm_column.py
+* args
+  * input_csv
+  * rm_column_list
+    * list of column to be removed, seperated by comma
+  * output_csv
+
+.venv/bin/python \
+  utils/csv_rm_column.py \
+  CodeCJK/build/tmp/patch0.z00.06.ttf.glyph.csv \
+  glyph_name \
+  CodeCJK/build/tmp/patch0.z00.07.actual.csv
+
+.venv/bin/python \
+  utils/csv_rm_column.py \
+  CodeCJK/build/tmp/patch0.z00.05.expect.glyph.csv \
+  glyph_name \
+  CodeCJK/build/tmp/patch0.z00.07.expect.csv
+
+diff \
+  CodeCJK/build/tmp/patch0.z00.07.actual.csv \
+  CodeCJK/build/tmp/patch0.z00.07.expect.csv
+
+===
+
+in CodeCJK/_func.py
+* create new function check_font
+  * args
+    * ttf_path
+  * when in linux, use ots-sanitize to check if the font is ok
+  * when in other platform, just pass
+  * when fail, raise exception
+
+===
+
+in ttf/scale_ttf.py
+* change arg input_scale_ttf to input_ttf
+* after arg input_ttf, add arg input_glyph_csv
+  * example: CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv
+* in input_glyph_csv, if cmap_used >= 1 and glyf_used >= 1, raise exception
+* in input_glyph_csv, if cmap_used >= 1, scale up the glyph
+* in input_glyph_csv, use glyph_index to match glyph, not glyph_name
+* if vmtx or vhea exist, raise exception
+
+2.206625
+
+.venv/bin/python \
+    "ttf/dump_char_csv.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf"
+
+.venv/bin/python \
+    "ttf/scale_ttf.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv" \
+    2.206625 \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf"
+
+.venv/bin/python \
+    "ttf/dump_char_csv.py" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf"
+
+comparing CodeCJK/build/tmp/patch0.z01.00.ttf.codepoint.csv and CodeCJK/build/tmp/patch0.z01.02.ttf.codepoint.csv
+it show most characters, for example, A, are not scaled well
+
+pass
+

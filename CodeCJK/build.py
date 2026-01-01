@@ -32,6 +32,13 @@ SRC_FONT_LIST = [
         "ttf_md5": "a09618fdaaa2aef4b7b45e26b7267763",
     },
     {
+        "id": "patch0",
+        "type": "ttf",
+        "ttf_url": "https://github.com/googlefonts/Inconsolata/raw/refs/heads/main/fonts/ttf/Inconsolata-Regular.ttf",
+        "ttf_filename": "Inconsolata-Regular.ttf",
+        "ttf_md5": "6acebfd97d8edc5226a384f77c613398",
+    },
+    {
         "id": "cjk",
         "type": "ttf",
         "ttf_url": "https://github.com/notofonts/noto-cjk/raw/refs/heads/main/Sans/Variable/TTF/Mono/NotoSansMonoCJKhk-VF.ttf",
@@ -54,8 +61,8 @@ if args.clean:
     print("Cleaned.")
 
 # Get datetime string
-yyyymmddhhmmss = get_datetime_string()
-print(f"Current datetime: {yyyymmddhhmmss}")
+YYYYMMDDHHMMSS = get_datetime_string()
+print(f"Current datetime: {YYYYMMDDHHMMSS}")
 
 # Get script and project directories
 script_dir = get_script_dir()
@@ -70,10 +77,10 @@ os.makedirs("output", exist_ok=True)
 print("Created tmp and output folders")
 
 # Download and prepare fonts (includes MD5 verification)
-download_fonts(SRC_FONT_LIST, project_root)
+download_fonts(SRC_FONT_LIST)
 
 # Set up Python environment
-python_exe = setup_python_environment(project_root)
+setup_python_environment()
 
 # Dump input font char CSV
 print("Dumping input font char CSV...")
@@ -81,6 +88,11 @@ py(
     "ttf/dump_char_csv.py",
     "tmp/base.ttf",
     "tmp/base.char.csv"
+)
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/patch0.ttf",
+    "tmp/patch0.char.csv"
 )
 py(
     "ttf/dump_char_csv.py",
@@ -105,27 +117,6 @@ cjk_half_advance_width = py(
 print(f"Base half advance width: {base_half_advance_width}")
 print(f"CJK half advance width: {cjk_half_advance_width}")
 
-# Calculate scale factor
-scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width)
-print(f"Scale factor: {scale_factor}")
-
-# Scale Noto Sans Mono CJK HK VF font
-print("Scaling CJK font...")
-py(
-    "ttf/scale_ttf.py",
-    "tmp/cjk.ttf",
-    str(scale_factor),
-    "tmp/cjk-Scaled.ttf"
-)
-
-# Dump scaled font char CSV
-print("Dumping scaled font char CSV...")
-py(
-    "ttf/dump_char_csv.py",
-    "tmp/cjk-Scaled.ttf",
-    "tmp/cjk-Scaled.char.csv"
-)
-
 # Get ASCII chars from base font
 print("Getting ASCII characters from base font...")
 py(
@@ -135,13 +126,56 @@ py(
     "tmp/base.ascii.char.csv"
 )
 
-# Get big chars from JetBrains Mono
+# Get big chars from base font
 print("Getting big characters from base font...")
 py(
     "ttf/filter_char_csv.py",
     "tmp/base.char.csv",
     "upper,number",
     "tmp/base.big.char.csv"
+)
+
+## Scale patch0 font to match base font
+
+print("Scaling patch0 font to match base font...")
+patch0_half_advance_width = py(
+    "utils/csv_query.py",
+    "tmp/patch0.char.csv",
+    "codepoint_dec", "79",
+    "advance_width"
+)
+print(f"Patch0 half advance width: {patch0_half_advance_width}")
+
+# Get big chars from patch0 font
+print("Getting big characters from patch0 font...")
+py(
+    "ttf/filter_char_csv.py",
+    "tmp/patch0.char.csv",
+    "upper,number",
+    "tmp/patch0.big.char.csv"
+)
+
+## Scale CJK font to match base font
+
+# Calculate CJK scale factor
+cjk_scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width)
+print(f"Scale factor: {cjk_scale_factor}")
+
+# Scale CJK font
+print("Scaling CJK font...")
+py(
+    "ttf/scale_ttf.py",
+    "tmp/cjk.ttf",
+    str(cjk_scale_factor),
+    "tmp/cjk-Scaled.ttf"
+)
+
+# Dump scaled font char CSV
+print("Dumping scaled font char CSV...")
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/cjk-Scaled.ttf",
+    "tmp/cjk-Scaled.char.csv"
 )
 
 # Get common CJK chars from scaled CJK font
@@ -214,8 +248,8 @@ py(
     "tmp/pick.meta.yaml",
     "--input-info-meta-yaml", str(project_root / "CodeCJK/codecjk_meta.yaml"),
     "--font-name", OUTPUT_FONT_FULL_NAME,
-    "--font-version", f"{OUTPUT_FONT_VERSION}.{yyyymmddhhmmss}",
-    "--override-datetime", yyyymmddhhmmss,
+    "--font-version", f"{OUTPUT_FONT_VERSION}.{YYYYMMDDHHMMSS}",
+    "--override-datetime", YYYYMMDDHHMMSS,
     "--output", f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
 )
 
@@ -265,7 +299,7 @@ py(
     f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
     OUTPUT_FONT_FULL_NAME,
     OUTPUT_FONT_NAME,
-    f"output/{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
+    f"output/{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf"
 )
 
 py(
@@ -287,13 +321,13 @@ py(
     f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf",
     OUTPUT_FONT_FULL_NAME,
     f"P{OUTPUT_FONT_NAME}",
-    f"output/P{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf"
+    f"output/P{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf"
 )
 
 print("\n" + "="*60)
 print("Build completed successfully!")
 print("="*60)
 print(f"Main output: output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf")
-print(f"Variant with timestamp: output/{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
-print(f"Proportional variants: output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf, output/P{OUTPUT_FONT_NAME}-{yyyymmddhhmmss}-Regular.ttf")
+print(f"Variant with timestamp: output/{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf")
+print(f"Proportional variants: output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf, output/P{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf")
 print(f"Preview images: output/preview.png, output/debug.png")
