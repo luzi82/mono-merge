@@ -32,12 +32,20 @@ def mark_glyphs_for_removal(input_csv, output_csv):
             
             rows = []
             for row in reader:
+                glyph_name = row.get('glyph_name', '')
+                
+                # Never remove .notdef
+                if glyph_name == '.notdef':
+                    row['rm'] = 0
+                    rows.append(row)
+                    continue
+                
                 # Parse usage counts (handle empty strings as 0)
                 try:
                     cmap_used = int(row.get('cmap_used', 0) or 0)
                     glyf_used = int(row.get('glyf_used', 0) or 0)
                 except ValueError:
-                    print(f"Warning: Invalid usage count for glyph {row.get('glyph_name', 'unknown')}", file=sys.stderr)
+                    print(f"Warning: Invalid usage count for glyph {glyph_name}", file=sys.stderr)
                     cmap_used = 0
                     glyf_used = 0
                 
