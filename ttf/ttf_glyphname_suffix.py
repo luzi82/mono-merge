@@ -82,18 +82,33 @@ def add_suffix_to_glyph_names(input_ttf, suffix, output_ttf):
     # Update post table and convert to format 2.0 if needed
     if 'post' in font:
         post = font['post']
-        # Convert to format 2.0 to store custom glyph names
-        if post.formatType == 3.0:
+        # Only convert to format 2.0 if the font has a reasonable number of glyphs
+        # Format 2.0 has limitations with large glyph counts
+        num_glyphs = len(font.getGlyphOrder())
+        if post.formatType == 3.0 and num_glyphs < 32768:
+            # Try to convert to format 2.0 to store custom glyph names
             post.formatType = 2.0
             # Rebuild the mapping for format 2.0
             post.mapping = {}
             post.extraNames = []
+        # If too many glyphs or already format 2.0, leave as is
     
     # Update glyph order
     font.setGlyphOrder([old_to_new[name] for name in glyph_order])
     
     # Save the modified font
-    font.save(output_ttf)
+    try:
+        font.save(output_ttf)
+    except OverflowError:
+        # If format 2.0 fails due to too many glyphs, revert to format 3.0
+        if 'post' in font and font['post'].formatType == 2.0:
+            print("Warning: Too many glyphs for post table format 2.0, reverting to 3.0")
+            font['post'].formatType = 3.0
+            if hasattr(font['post'], 'mapping'):
+                delattr(font['post'], 'mapping')
+            if hasattr(font['post'], 'extraNames'):
+                delattr(font['post'], 'extraNames')
+            font.save(output_ttf)
     renamed_count = sum(1 for old, new in old_to_new.items() if old != new)
     print(f"Saved font with suffix '{suffix}' to {output_ttf}")
     print(f"Renamed {renamed_count} glyphs (excluding .notdef)")
