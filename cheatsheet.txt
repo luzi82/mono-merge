@@ -588,19 +588,27 @@ in ttf/scale_ttf.py
 2.206625
 
 .venv/bin/python \
-    "ttf/dump_char_csv.py" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf"
+    "ttf/dump_data_yaml.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf.data.yaml"
 
+.venv/bin/python \
+    "ttf/dump_char_csv.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" && \
 .venv/bin/python \
     "ttf/scale_ttf.py" \
     "CodeCJK/build/tmp/patch0.z01.00.ttf" \
     "CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv" \
     2.206625 \
-    "CodeCJK/build/tmp/patch0.z01.02.ttf"
-
+    "CodeCJK/build/tmp/patch0.z01.02.ttf" && \
 .venv/bin/python \
     "ttf/dump_char_csv.py" \
     "CodeCJK/build/tmp/patch0.z01.02.ttf"
+
+.venv/bin/python \
+    "ttf/dump_data_yaml.py" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf.data.yaml"
 
 comparing CodeCJK/build/tmp/patch0.z01.00.ttf.codepoint.csv and CodeCJK/build/tmp/patch0.z01.02.ttf.codepoint.csv
 it show most characters, for example, A, are not scaled well
