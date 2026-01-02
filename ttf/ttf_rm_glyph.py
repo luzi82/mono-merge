@@ -2,6 +2,11 @@
 """
 Remove glyphs from a TTF file based on a CSV marking file.
 Removes glyphs where rm=1 from the font.
+
+Assumptions:
+- All removed glyphs are not mapped in cmap directly or indirectly.
+
+# TODO: bug: need to remap composite glyphs
 """
 import argparse
 import csv

@@ -615,3 +615,30 @@ it show most characters, for example, A, are not scaled well
 
 pass
 
+===
+
+Create new script ttf/ttf_decompose_composite_glyph.py
+* args:
+  * input_ttf, output_ttf
+* decompose composite glyph
+
+.venv/bin/python \
+  "ttf/ttf_decompose_composite_glyph.py" \
+  "CodeCJK/build/tmp/base.z01.00.ttf" \
+  "CodeCJK/build/tmp/base.z01.01.ttf" \
+&& \
+.venv/bin/python \
+  "ttf/dump_char_csv.py" \
+  "CodeCJK/build/tmp/base.z01.01.ttf" \
+
+in CodeCJK/build/tmp/base.z01.01.ttf.codepoint.csv, line 116,
+it show is_composite=True
+
+===
+
+Create new script utils/csv_set_col.py
+* args:
+  * input_csv
+  * key_value_pairs
+    * format example: key0:value0,key1:value1...
+  * output_csv
