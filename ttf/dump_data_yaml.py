@@ -71,7 +71,7 @@ def dump_head_table(font):
     
     # Dynamically capture all head table attributes
     for attr_name in dir(head):
-        if attr_name.startswith('_') or callable(getattr(head, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(head, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -102,7 +102,7 @@ def dump_hhea_table(font):
     
     # Dynamically capture all hhea table attributes
     for attr_name in dir(hhea):
-        if attr_name.startswith('_') or callable(getattr(hhea, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(hhea, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -124,7 +124,7 @@ def dump_os2_table(font):
     # Dynamically capture all OS/2 attributes
     for attr_name in dir(os2):
         # Skip private/internal attributes and methods
-        if attr_name.startswith('_') or callable(getattr(os2, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(os2, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -160,7 +160,7 @@ def dump_post_table(font):
     
     # Dynamically capture all post table attributes
     for attr_name in dir(post):
-        if attr_name.startswith('_') or callable(getattr(post, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(post, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -190,7 +190,7 @@ def dump_maxp_table(font):
     
     # Dynamically capture all maxp table attributes
     for attr_name in dir(maxp):
-        if attr_name.startswith('_') or callable(getattr(maxp, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(maxp, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -217,7 +217,7 @@ def dump_vhea_table(font):
     
     # Dynamically capture all vhea table attributes
     for attr_name in dir(vhea):
-        if attr_name.startswith('_') or callable(getattr(vhea, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(vhea, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -238,7 +238,7 @@ def dump_gasp_table(font):
     
     # Dynamically capture all gasp table attributes
     for attr_name in dir(gasp):
-        if attr_name.startswith('_') or callable(getattr(gasp, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(gasp, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -345,7 +345,7 @@ def dump_kern_table(font):
     
     # Dynamically capture all kern table attributes
     for attr_name in dir(kern):
-        if attr_name.startswith('_') or callable(getattr(kern, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(kern, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -377,7 +377,7 @@ def dump_gdef_table(font):
     
     # Dynamically capture all GDEF table attributes
     for attr_name in dir(gdef):
-        if attr_name.startswith('_') or callable(getattr(gdef, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(gdef, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -419,7 +419,7 @@ def dump_gpos_table(font):
     
     # Dynamically capture all GPOS table attributes
     for attr_name in dir(gpos):
-        if attr_name.startswith('_') or callable(getattr(gpos, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(gpos, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
@@ -467,7 +467,7 @@ def dump_gsub_table(font):
     
     # Dynamically capture all GSUB table attributes
     for attr_name in dir(gsub):
-        if attr_name.startswith('_') or callable(getattr(gsub, attr_name)):
+        if attr_name.startswith('_') or callable(getattr(gsub, attr_name)) or attr_name == 'tableTag':
             continue
         
         try:
