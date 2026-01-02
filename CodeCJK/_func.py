@@ -107,10 +107,15 @@ def setup_python_environment():
     return _python_exe
 
 
-def py(script_path, *args):
+def py(script_path, *args, stdout=True):
     """Run a Python script with the given arguments.
     
     script_path is relative to project_root and will be automatically prefixed.
+    
+    Args:
+        script_path: Path to the script relative to project root
+        *args: Arguments to pass to the script
+        stdout: If True, print process output to stdout (default: True)
     """
     if _python_exe is None:
         raise RuntimeError("Python executable not set. Call set_python_exe() first.")
@@ -137,12 +142,13 @@ def py(script_path, *args):
     
     output_lines = []
     for line in process.stdout:
-        # Print to stdout with encoding error handling
-        try:
-            print(line, end='')
-        except UnicodeEncodeError:
-            # If console can't display the character, encode with replacement
-            print(line.encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding), end='')
+        if stdout:
+            # Print to stdout with encoding error handling
+            try:
+                print(line, end='')
+            except UnicodeEncodeError:
+                # If console can't display the character, encode with replacement
+                print(line.encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding), end='')
         output_lines.append(line)
     
     process.wait()
