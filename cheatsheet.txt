@@ -642,3 +642,39 @@ Create new script utils/csv_set_col.py
   * key_value_pairs
     * format example: key0:value0,key1:value1...
   * output_csv
+
+===
+
+Update script utils/csv_dump_col.py
+
+from
+
+* args:
+  * input_csv
+  * columns
+    * list of columns, seperated by comma
+  * --header
+    * include header in output, otherwise no header
+* print the value of the columns in each row to stdout, one line per row
+
+.venv/bin/python \
+  "utils/csv_dump_col.py" \
+  "CodeCJK/build/tmp/base.z01.01.ttf.codepoint.csv" \
+  "num_contours"
+
+===
+
+Create script ttf/ttf_set_data.py
+
+* args:
+  * input_ttf
+  * units_per_em
+    * optional
+    * update head.unitsPerEm
+  * output_ttf
+
+===
+
+change ttf/dump_data_yaml.py
+* hide tableTag in output_yaml
+* reference: CodeCJK/build/tmp/patch0.z04.00.ttf.data.yaml
