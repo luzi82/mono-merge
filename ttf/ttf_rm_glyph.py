@@ -4,9 +4,8 @@ Remove glyphs from a TTF file based on a CSV marking file.
 Removes glyphs where rm=1 from the font.
 
 Assumptions:
-- All removed glyphs are not mapped in cmap directly or indirectly.
-
-# TODO: bug: need to remap composite glyphs
+- No composite glyphs exist in input_ttf
+- All removed glyphs are not mapped in cmap
 """
 import argparse
 import csv
@@ -70,6 +69,24 @@ def remove_glyphs_from_font(font, glyphs_to_remove):
     # Check if .notdef is in glyphs_to_remove
     if '.notdef' in glyphs_to_remove:
         raise ValueError("Cannot remove .notdef glyph - it is required in all fonts")
+    
+    # Check if any composite glyphs exist in the font
+    if 'glyf' in font:
+        glyf_table = font['glyf']
+        composite_glyphs = []
+        for glyph_name in font.getGlyphOrder():
+            if glyph_name in glyf_table:
+                glyph = glyf_table[glyph_name]
+                if glyph.isComposite():
+                    composite_glyphs.append(glyph_name)
+        
+        if composite_glyphs:
+            error_msg = "Input font contains composite glyphs (assumption violated):\n"
+            for glyph_name in composite_glyphs[:10]:  # Show first 10
+                error_msg += f"  {glyph_name}\n"
+            if len(composite_glyphs) > 10:
+                error_msg += f"  ... and {len(composite_glyphs) - 10} more\n"
+            raise ValueError(error_msg)
     
     # Check if any glyph to remove is still mapped in cmap
     if 'cmap' in font:
