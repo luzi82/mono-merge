@@ -276,3 +276,35 @@ def check_font(ttf_path):
             raise RuntimeError("ots-sanitize command not found. Please install ots-tools.") from None
     else:
         print(f"Skipping font validation on {platform.system()} platform: {ttf_path}")
+
+
+def linux_cmd(*args):
+    """Run a command on Linux systems only.
+    
+    Args:
+        *args: Command and arguments to execute (e.g., 'ots-sanitize', 'file.ttf')
+        
+    Raises:
+        RuntimeError: If the command fails or if ots-sanitize is not found
+        
+    Note:
+        On non-Linux platforms, the command is skipped with a message.
+    """
+    if platform.system() == "Linux":
+        try:
+            print(f"Running command: {' '.join(args)}")
+            result = subprocess.run(
+                args,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=_my_env
+            )
+            print(f"Command succeeded: {' '.join(args)}")
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Command failed: {' '.join(args)}"
+            if e.stderr:
+                error_msg += f"\n{e.stderr}"
+            raise RuntimeError(error_msg) from e
+    else:
+        print(f"Skipping command on {platform.system()} platform: {' '.join(args)}")
