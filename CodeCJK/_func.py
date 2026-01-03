@@ -2,6 +2,7 @@
 Helper functions for CodeCJK build script.
 """
 
+import csv
 import hashlib
 import os
 import platform
@@ -314,3 +315,36 @@ def linux_cmd(*args):
             raise RuntimeError(error_msg) from e
     else:
         print(f"Skipping command on {platform.system()} platform: {' '.join(args)}")
+
+
+def read_csv(input_csv):
+    """Read a CSV file and return a list of dictionaries.
+    
+    Args:
+        input_csv: Path to the input CSV file
+        
+    Returns:
+        List of dictionaries, one per row (excluding header)
+    """
+    data = []
+    with open(input_csv, 'r', encoding='utf-8', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            data.append(row)
+    
+    return data
+
+
+def write_csv(data, columns, output_csv):
+    """Write a list of dictionaries to a CSV file.
+    
+    Args:
+        data: List of dictionaries to write
+        columns: List of column names to output (in order)
+        output_csv: Path to the output CSV file
+    """
+    with open(output_csv, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        writer.writeheader()
+        for row in data:
+            writer.writerow(row)
