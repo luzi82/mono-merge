@@ -1,0 +1,29 @@
+change ttf/modify_advance_width.py
+
+from:
+
+* args
+  * input_ttf
+  * input_shift_x_csv
+    * created by ttf/cal_x_shift_csv.py
+  * output_ttf
+* update the advance_width and x position of each char
+
+to:
+
+* args
+  * input_ttf
+  * input_shift_x_csv
+    * created by ttf/cal_shift_x_csv.py
+    * example: CodeCJK/build/tmp/patch0.z04.04.shift_x.csv
+  * output_ttf
+* update the advance_width and x position of each glyph
+
+notice that input_shift_x_csv do not have codepoint_dec, but glyph_index
+
+.venv/bin/python \
+    ttf/modify_advance_width.py \
+    "CodeCJK/build/tmp/patch0.z04.03.ttf" \
+    "CodeCJK/build/tmp/patch0.z04.04.shift_x.csv" \
+    "CodeCJK/build/tmp/patch0.z04.05.ttf"
+

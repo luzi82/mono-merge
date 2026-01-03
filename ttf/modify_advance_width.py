@@ -14,7 +14,7 @@ def modify_advance_width(input_ttf, shift_x_csv, output_ttf):
     
     Args:
         input_ttf: Path to the input TTF font file
-        shift_x_csv: Path to CSV file with shift_x and new_advance_width columns
+        shift_x_csv: Path to CSV file with shift_x and advance_width columns
         output_ttf: Path to the output TTF font file
     """
     print(f"Loading font: {input_ttf}")
@@ -22,23 +22,20 @@ def modify_advance_width(input_ttf, shift_x_csv, output_ttf):
     
     # Read shift data from CSV
     print(f"Reading shift data from: {shift_x_csv}")
-    shift_data = {}  # codepoint -> (shift_x, new_advance_width)
+    shift_data = {}  # glyph_index -> (shift_x, advance_width)
     
     with open(shift_x_csv, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            codepoint = int(row['codepoint_dec'])
+            glyph_index = int(row['glyph_index'])
             shift_x = float(row['shift_x'])
-            new_advance_width = int(row['new_advance_width'])
-            shift_data[codepoint] = (shift_x, new_advance_width)
+            advance_width = int(row['advance_width'])
+            shift_data[glyph_index] = (shift_x, advance_width)
     
-    print(f"Loaded shift data for {len(shift_data)} characters")
+    print(f"Loaded shift data for {len(shift_data)} glyphs")
     
-    # Get cmap
-    cmap = font.getBestCmap()
-    if cmap is None:
-        print("Error: No character map found in font")
-        return
+    # Get glyph order to map glyph index to glyph name
+    glyph_order = font.getGlyphOrder()
     
     # Get tables
     glyf_table = font['glyf']
@@ -47,20 +44,21 @@ def modify_advance_width(input_ttf, shift_x_csv, output_ttf):
     # Track which glyphs have been shifted to avoid double-shifting
     shifted_glyphs = set()
     
-    # Process each character
+    # Process each glyph
     modified_count = 0
-    for codepoint, (shift_x, new_advance_width) in shift_data.items():
-        # Get glyph name from codepoint
-        if codepoint not in cmap:
+    for glyph_index, (shift_x, advance_width) in shift_data.items():
+        # Get glyph name from glyph index
+        if glyph_index >= len(glyph_order):
+            print(f"Warning: glyph_index {glyph_index} out of range")
             continue
         
-        glyph_name = cmap[codepoint]
+        glyph_name = glyph_order[glyph_index]
         
         if shift_x == 0:
             # Only update advance width, no shift needed
             try:
                 old_advance_width, lsb = hmtx[glyph_name]
-                hmtx[glyph_name] = (new_advance_width, lsb)
+                hmtx[glyph_name] = (advance_width, lsb)
                 modified_count += 1
             except KeyError:
                 pass
@@ -70,7 +68,7 @@ def modify_advance_width(input_ttf, shift_x_csv, output_ttf):
         try:
             old_advance_width, lsb = hmtx[glyph_name]
             new_lsb = int(lsb + shift_x)
-            hmtx[glyph_name] = (new_advance_width, new_lsb)
+            hmtx[glyph_name] = (advance_width, new_lsb)
         except KeyError:
             pass
         
@@ -117,7 +115,7 @@ def main():
     )
     parser.add_argument(
         'input_shift_x_csv',
-        help='CSV file with shift_x and new_advance_width columns (created by cal_shift_x_csv.py)'
+        help='CSV file with glyph_index, shift_x and advance_width columns (created by cal_shift_x_csv.py, e.g. CodeCJK/build/tmp/patch0.z04.04.shift_x.csv)'
     )
     parser.add_argument(
         'output_ttf',
