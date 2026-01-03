@@ -2,6 +2,7 @@
 import argparse
 import csv
 import sys
+import re
 
 def main():
     parser = argparse.ArgumentParser(description="Query a value from a CSV file.")
@@ -46,6 +47,40 @@ def main():
                     print(max_row[args.pull_column])
                 else:
                     sys.exit(1)
+            # Handle __xx%__ percentile pattern
+            elif re.match(r'^__\d+%__$', args.search_value):
+                # Extract percentile value
+                percentile_str = args.search_value[2:-3]  # Remove __ and %__
+                percentile = int(percentile_str)
+                
+                if percentile < 0 or percentile > 100:
+                    sys.exit(1)
+                
+                # Collect all numeric values with their rows
+                values_with_rows = []
+                for row in reader:
+                    try:
+                        current_value = float(row[args.search_column])
+                        values_with_rows.append((current_value, row))
+                    except ValueError:
+                        # Skip rows with non-numeric values
+                        continue
+                
+                if not values_with_rows:
+                    sys.exit(1)
+                
+                # Sort by value in descending order
+                values_with_rows.sort(key=lambda x: x[0], reverse=True)
+                
+                # Calculate the index for the percentile
+                # percentile% highest means we want the value at (100-percentile)th percentile
+                # For example, 95% highest means top 5% (95th percentile from bottom = 5% from top)
+                index = int(len(values_with_rows) * (100 - percentile) / 100)
+                if index >= len(values_with_rows):
+                    index = len(values_with_rows) - 1
+                
+                target_row = values_with_rows[index][1]
+                print(target_row[args.pull_column])
             else:
                 # Original exact match logic
                 found = False
