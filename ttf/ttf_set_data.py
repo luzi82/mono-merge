@@ -18,6 +18,16 @@ def main():
         help='Update head.unitsPerEm value'
     )
     parser.add_argument(
+        '--ascender',
+        type=int,
+        help='Update ascender value in OS/2 and hhea tables'
+    )
+    parser.add_argument(
+        '--descender',
+        type=int,
+        help='Update descender value in OS/2 and hhea tables'
+    )
+    parser.add_argument(
         'output_ttf',
         help='Output TTF file path'
     )
@@ -33,6 +43,26 @@ def main():
             raise ValueError("Font does not contain a 'head' table")
         font['head'].unitsPerEm = args.units_per_em
         print(f"Updated unitsPerEm to {args.units_per_em}")
+    
+    # Update ascender if provided
+    if args.ascender is not None:
+        if 'OS/2' in font:
+            font['OS/2'].sTypoAscender = args.ascender
+            font['OS/2'].usWinAscent = args.ascender
+            print(f"Updated OS/2 ascender to {args.ascender}")
+        if 'hhea' in font:
+            font['hhea'].ascent = args.ascender
+            print(f"Updated hhea ascender to {args.ascender}")
+    
+    # Update descender if provided
+    if args.descender is not None:
+        if 'OS/2' in font:
+            font['OS/2'].sTypoDescender = args.descender
+            font['OS/2'].usWinDescent = abs(args.descender)
+            print(f"Updated OS/2 descender to {args.descender}")
+        if 'hhea' in font:
+            font['hhea'].descent = args.descender
+            print(f"Updated hhea descender to {args.descender}")
     
     # Save the modified font
     font.save(args.output_ttf)
