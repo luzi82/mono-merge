@@ -1,0 +1,72 @@
+Change ttf/scale_ttf.py
+
+from
+
+* args
+  * input_ttf
+    * The TTF font to be scaled
+  * input_glyph_csv
+    * CSV file with glyph information (e.g., CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv)
+  * scale_factor
+    * Scale factor to apply (e.g., 1.2 for 120%)
+  * output_ttf
+* advance width should be scaled
+* all glyph should be scaled
+* units_per_em should NOT be scaled
+* All other coordinate should be scaled
+* the center of scaling should be 0,0
+* in input_glyph_csv, if cmap_used >= 1 and glyf_used >= 1, raise exception
+* in input_glyph_csv, if cmap_used >= 1, scale up the glyph
+* in input_glyph_csv, use glyph_index to match glyph, not glyph_name
+* if vmtx or vhea exist, raise exception
+
+to
+
+* args
+  * input_ttf
+    * The TTF font to be scaled
+  * input_glyph_csv
+    * CSV file with glyph information (e.g., CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv)
+  * scale_factor
+    * Scale factor to apply (e.g., 1.2 for 120%)
+  * output_ttf
+* advance width should be scaled
+* all glyph should be scaled
+* units_per_em should NOT be scaled
+* All other coordinate should be scaled
+* the center of scaling should be 0,0
+* assume no composite glyph exist in the ttf, otherwise raise exception
+* in input_glyph_csv, if cmap_used >= 1 and glyf_used >= 1, raise exception
+* in input_glyph_csv, if cmap_used >= 1, scale up the glyph
+* in input_glyph_csv, use glyph_index to match glyph, not glyph_name
+* if vmtx or vhea exist, raise exception
+
+remove all handling about composite glyph
+
+
+
+.venv/bin/python \
+    "ttf/dump_data_yaml.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf.data.yaml"
+
+.venv/bin/python \
+    "ttf/dump_char_csv.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" && \
+.venv/bin/python \
+    "ttf/scale_ttf.py" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv" \
+    2.206625 \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf" && \
+.venv/bin/python \
+    "ttf/dump_char_csv.py" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf"
+
+.venv/bin/python \
+    "ttf/dump_data_yaml.py" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf" \
+    "CodeCJK/build/tmp/patch0.z01.02.ttf.data.yaml"
+
+comparing CodeCJK/build/tmp/patch0.z01.00.ttf.codepoint.csv and CodeCJK/build/tmp/patch0.z01.02.ttf.codepoint.csv
+it show most characters, for example, A, are not scaled well
