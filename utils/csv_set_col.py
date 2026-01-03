@@ -36,17 +36,16 @@ def main():
     try:
         with open(args.input_csv, 'r', newline='', encoding='utf-8') as infile:
             reader = csv.DictReader(infile)
-            fieldnames = reader.fieldnames
+            fieldnames = list(reader.fieldnames) if reader.fieldnames else []
             
-            if fieldnames is None:
+            if not fieldnames:
                 print("Error: Input CSV has no header row", file=sys.stderr)
                 sys.exit(1)
             
-            # Check if all keys exist in the CSV
+            # Add new columns to the end if they don't exist
             for key in column_values.keys():
                 if key not in fieldnames:
-                    print(f"Error: Column '{key}' not found in CSV", file=sys.stderr)
-                    sys.exit(1)
+                    fieldnames.append(key)
             
             with open(args.output_csv, 'w', newline='', encoding='utf-8') as outfile:
                 writer = csv.DictWriter(outfile, fieldnames=fieldnames)

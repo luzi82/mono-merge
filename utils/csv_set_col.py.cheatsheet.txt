@@ -1,0 +1,18 @@
+Change utils/csv_set_col.py
+
+from
+
+* args:
+  * input_csv
+  * key_value_pairs
+    * format example: key0:value0,key1:value1...
+  * output_csv
+
+to
+
+* args:
+  * input_csv
+  * key_value_pairs
+    * format example: key0:value0,key1:value1...
+  * output_csv
+* If the column is not exist, create it and append to the right
