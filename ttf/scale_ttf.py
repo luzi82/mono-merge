@@ -49,33 +49,18 @@ def scale_font(font, scale_factor, glyphs_to_scale=None):
     Returns:
         Modified TTFont object
     """
-    # First, decompose composite glyphs that need scaling if scale_factor > 2.0
-    # This is necessary because TrueType F2Dot14 format can only represent scales up to ~2.0
-    if glyphs_to_scale is not None and scale_factor > 1.999:
-        print(f"Scale factor {scale_factor} exceeds F2Dot14 limit, decomposing composite glyphs...")
-        from fontTools.pens.ttGlyphPen import TTGlyphPen
-        from fontTools.pens.recordingPen import RecordingPen
-        
+    # Check for composite glyphs - not supported
+    if 'glyf' in font:
         glyf_table = font['glyf']
-        for glyph_index in glyphs_to_scale:
-            glyph_name = font.getGlyphName(glyph_index)
+        for glyph_name in font.getGlyphOrder():
             if glyph_name not in glyf_table:
                 continue
             glyph = glyf_table[glyph_name]
             if glyph.isComposite():
-                # Get the flattened coordinates
-                coords, endPts, flags = glyph.getCoordinates(glyf_table)
-                # Create a new simple glyph with these coordinates
-                glyph.numberOfContours = len(endPts)
-                glyph.coordinates = coords
-                glyph.flags = flags
-                glyph.endPtsOfContours = endPts
-                # Clear hinting instructions
-                from fontTools.ttLib.tables._g_l_y_f import ttProgram
-                glyph.program = ttProgram.Program()
-                # Remove component data
-                if hasattr(glyph, 'components'):
-                    delattr(glyph, 'components')
+                raise RuntimeError(
+                    f"Font contains composite glyph '{glyph_name}'. "
+                    f"Composite glyphs are not supported."
+                )
     
     # Scale glyph coordinates
     if 'glyf' in font:
@@ -92,20 +77,7 @@ def scale_font(font, scale_factor, glyphs_to_scale=None):
             
             glyph = glyf_table[glyph_name]
             
-            if glyph.isComposite():
-                # For composite glyphs, scale component translations
-                for comp in glyph.components:
-                    comp.x = int(comp.x * scale_factor)
-                    comp.y = int(comp.y * scale_factor)
-                    # Apply scale transform if scale_factor <= 2.0
-                    if scale_factor <= 1.999:
-                        if hasattr(comp, 'transform') and comp.transform is not None:
-                            t = Transform(*comp.transform[0], *comp.transform[1], *comp.transform[2])
-                            t = t.scale(scale_factor)
-                            comp.transform = [[t.xx, t.xy], [t.yx, t.yy], [int(t.dx), int(t.dy)]]
-                        else:
-                            comp.transform = [[scale_factor, 0], [0, scale_factor], [0, 0]]
-            elif glyph.numberOfContours > 0:
+            if glyph.numberOfContours > 0:
                 # For simple glyphs, scale all coordinates
                 coords = glyph.coordinates
                 for i in range(len(coords)):
