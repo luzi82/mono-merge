@@ -1,0 +1,16 @@
+change ttf/cal_shift_x_csv.py
+
+to
+
+* args
+  * input_csv
+    * example: CodeCJK/build/tmp/base.z01.00.ttf.glyph.csv
+  * advance_width
+  * output_csv
+* new_advance_width = advance_width * width_unit
+* if is_empty_glyph=True, shift_x=0
+  * notice if is_empty_glyph=True, lsb, xMin, xMax will be empty string
+    * example: CodeCJK/build/tmp/base.z01.00.ttf.glyph.csv line 134
+* else, the shift_x value should keep the ratio of xMin:(new_advance_width-xMax) after shift
+* put advance_width = new_advance_width
+* update lsb, xMin, xMax

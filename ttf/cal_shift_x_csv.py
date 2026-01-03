@@ -21,34 +21,65 @@ def main():
         
         reader = csv.DictReader(infile)
         
-        # Add new columns to fieldnames
-        fieldnames = reader.fieldnames + ['shift_x', 'new_advance_width']
+        # Add new column to fieldnames
+        fieldnames = reader.fieldnames + ['shift_x']
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
         
         for row in reader:
             old_advance_width = int(row['advance_width'])
-            is_full_width = row['is_full_width'].lower() == 'true'
+            width_unit = int(row['width_unit'])
+            is_empty_glyph = row['is_empty_glyph'].lower() == 'true'
             
-            # Calculate new advance width
-            if is_full_width:
-                new_advance_width = args.advance_width * 2
-            else:
-                new_advance_width = args.advance_width
+            # Calculate new advance width based on width_unit
+            new_advance_width = args.advance_width * width_unit
             
             # Calculate x-shift
-            shift_x = (new_advance_width - old_advance_width) / 2
-            
-            # Round shift_x: if fractional part >= 0.5, round down; otherwise round up
-            frac_part = abs(shift_x) - math.floor(abs(shift_x))
-            if frac_part >= 0.5:
-                shift_x = math.floor(shift_x)
+            if is_empty_glyph:
+                # Empty glyphs don't need shifting
+                # Note: lsb, xMin, xMax are empty strings for empty glyphs
+                shift_x = 0
             else:
-                shift_x = math.ceil(shift_x)
+                # Parse numeric values for non-empty glyphs
+                lsb = int(row['lsb'])
+                xMin = int(row['xMin'])
+                xMax = int(row['xMax'])
+                
+                # Calculate x-shift to maintain the ratio xMin:(new_advance_width-xMax)
+                # old_left_margin = xMin
+                # old_right_margin = old_advance_width - xMax
+                # We want: (xMin + shift_x) / (new_advance_width - xMax - shift_x) = xMin / (old_advance_width - xMax)
+                # Solving for shift_x:
+                # (xMin + shift_x) * (old_advance_width - xMax) = xMin * (new_advance_width - xMax - shift_x)
+                # xMin * (old_advance_width - xMax) + shift_x * (old_advance_width - xMax) = xMin * new_advance_width - xMin * xMax - xMin * shift_x
+                # shift_x * (old_advance_width - xMax) + xMin * shift_x = xMin * new_advance_width - xMin * xMax - xMin * (old_advance_width - xMax)
+                # shift_x * (old_advance_width - xMax + xMin) = xMin * (new_advance_width - old_advance_width)
+                # shift_x = xMin * (new_advance_width - old_advance_width) / (old_advance_width - xMax + xMin)
+                
+                old_right_margin = old_advance_width - xMax
+                denominator = old_right_margin + xMin
+                
+                if denominator != 0:
+                    shift_x = xMin * (new_advance_width - old_advance_width) / denominator
+                else:
+                    # Fallback to center alignment if denominator is zero
+                    shift_x = (new_advance_width - old_advance_width) / 2
+                
+                # Round shift_x: if fractional part >= 0.5, round down; otherwise round up
+                frac_part = abs(shift_x) - math.floor(abs(shift_x))
+                if frac_part >= 0.5:
+                    shift_x = math.floor(shift_x)
+                else:
+                    shift_x = math.ceil(shift_x)
+                
+                # Update lsb, xMin, xMax for non-empty glyphs
+                row['lsb'] = lsb + shift_x
+                row['xMin'] = xMin + shift_x
+                row['xMax'] = xMax + shift_x
             
-            # Add calculated values to row
+            # Update advance_width and add shift_x for all glyphs
+            row['advance_width'] = new_advance_width
             row['shift_x'] = shift_x
-            row['new_advance_width'] = new_advance_width
             
             writer.writerow(row)
 
