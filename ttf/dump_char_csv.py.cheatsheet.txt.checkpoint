@@ -1,0 +1,62 @@
+modify ttf/dump_char_csv.py
+* args:
+  * input_ttf
+  * output_codepoint_csv
+    * one row per codepoint
+    * columns
+      * codepoint
+        * in U+XXXX format
+      * codepoint_dec
+        * codepoint in dec
+      * glyph_index
+        * the glyph index it use
+      * (other colums in output_glyph_csv)
+  * output_glyph_csv
+    * one row per glyph
+    * columns
+      * glype_index
+      * glyph_name
+      * advance_width
+      * lsb
+      * xMin
+      * yMin
+      * xMax
+      * yMax
+      * width
+      * height
+      * width_unit
+        * if advance_width <= 0, 0
+        * if advance_width <= (1*2)**0.5, 1
+        * if advance_width <= (2*3)**0.5, 2
+        * if advance_width <= (3*4)**0.5, 3
+        * ...etc
+      * is_empty_glyph
+      * is_composite
+      * num_contours
+      * num_glyph
+        * number of glyp refer to
+      * cmap_used
+        * number of cmap refer from
+      * glyf_used
+        * number of glyp refer from
+      * gsub_used
+        * number of gsub refer from
+      * gpos_used
+        * number of gpos refer from
+      * has_glyf
+        * contains glyf data
+      * has_hmtx
+        * contains hmtx data
+      * has_vmtx
+        * contains vmtx data
+  * output_glyphref_csv
+    * store the refereces between glyf
+    * columns
+      * ref_from_index
+        * glyph id ref from
+      * ref_from
+        * glyph name ref from
+      * ref_to_index
+        * glyph id ref to
+      * ref_to
+        * glyph name ref to
