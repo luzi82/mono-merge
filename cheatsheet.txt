@@ -609,6 +609,6 @@ ttfautohint \
     "tmp/z05/output.z05.03.ttf"
 
 python -m nbconvert \
-  --to script CodeCJK/test.ipynb \
+  --to script CodeCJK/build.ipynb \
   --output build
 

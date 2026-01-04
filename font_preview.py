@@ -81,7 +81,7 @@ def get_font_info(font_path, font_index=0):
         ttfont = TTFont(font_path, fontNumber=font_index)
         info = {
             'file_path': str(font_path),
-            'tables': list(ttfont.keys()),
+            # 'tables': list(filter(lambda i: isinstance(i, str),ttfont.keys())),
         }
         
         # Get font names
@@ -171,30 +171,19 @@ def render_text_preview(font_path, text, output_prefix, font_size=48, font_index
         x = (img_width - text_width) // 2
         y = (img_height - text_height) // 2
         
-        # Draw text
-        draw.text((x, y), text, fill=text_color, font=font)
+        # Get font metrics (needed for render_info)
+        ascent, descent = font.getmetrics()
+        
+        # Calculate baseline and other lines
+        real_bbox = draw.textbbox((x, y), text, font=font)
+        baseline_y = y + ascent
+        ascent_y = y
+        descent_y = y + ascent + descent
         
         if debug:
-            # Get font metrics
-            ascent, descent = font.getmetrics()
-            
-            # Calculate lines based on anchor 'la' (Left, Ascender) which is default for draw.text?
-            # Actually, let's check the bbox relative to (x,y) to be sure where things are.
-            real_bbox = draw.textbbox((x, y), text, font=font)
-            
+            # Draw debug lines first (so text appears on top)
             # Draw bounding box (Orange)
             draw.rectangle(real_bbox, outline=(255, 165, 0), width=1)
-            
-            # Assuming default anchor 'la' (Left, Ascender)
-            # (x, y) is the top-left of the em-square (ascender line)
-            # But wait, if we used (x,y) calculated from bbox to center it, 
-            # we need to know what (x,y) represents.
-            # draw.text((x,y), ...) draws at (x,y).
-            # If default anchor is 'la', then y is the ascender line.
-            
-            baseline_y = y + ascent
-            ascent_y = y
-            descent_y = y + ascent + descent
             
             # Create a small font for labels
             try:
@@ -231,6 +220,9 @@ def render_text_preview(font_path, text, output_prefix, font_size=48, font_index
             
             # Draw final vertical line
             draw.line([(curr_x, 0), (curr_x, img_height)], fill=(0, 255, 255), width=1)
+        
+        # Draw text (after debug lines so it appears on top)
+        draw.text((x, y), text, fill=text_color, font=font)
 
         # Save image
         output_png = f"{output_prefix}.png"
@@ -252,7 +244,18 @@ def render_text_preview(font_path, text, output_prefix, font_size=48, font_index
                 'bottom': bbox[3],
                 'width': text_width,
                 'height': text_height
-            }
+            },
+            'text_bounding_box_in_png': {
+                'left': real_bbox[0],
+                'top': real_bbox[1],
+                'right': real_bbox[2],
+                'bottom': real_bbox[3],
+                'width': real_bbox[2] - real_bbox[0],
+                'height': real_bbox[3] - real_bbox[1]
+            },
+            'ascent_line_y': ascent_y,
+            'baseline_y': baseline_y,
+            'descent_line_y': descent_y
         }
         
         return output_png, render_info

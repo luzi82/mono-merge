@@ -4,7 +4,7 @@
 
 ## 特點
 
-![Font debug](debug_clip.png)
+![Font debug](img/debug_clip.png)
 
 * 支援中日韓字元。
 * 字距等寛，Monospace。
@@ -27,18 +27,24 @@
 
 這個字型檔使用了以下字型
 
-* 主要字型: [JetBrains Mono NL](https://www.jetbrains.com/lp/mono/)
+* 基礎字型: [Fira Code](https://github.com/tonsky/FiraCode)
+* 增補字型: [Inconsolata](https://fonts.google.com/specimen/Inconsolata)
 * CJK 字型: [Noto Sans Mono CJK HK](https://github.com/notofonts/noto-cjk/tree/main)
 
 ## 下載
 
 [CodeCJK004](https://www.dropbox.com/scl/fo/d5k6lswmoa31vuvgooshe/AEa-e7DcBrXNyI5zDMiW3KI?rlkey=5c1ftf6xpk7n0apns5xw500zn&st=61aq0pv6&dl=0)
 
-## 如何製造 CodeCJK 字型檔
+## 如何生成 CodeCJK 字型檔
 
 ```bash
-CodeCJK/build.sh
+python CodeCJK/build.py
 ```
+
+## 變體
+
+* **P**CodeCJK 是沒有註明 monospace 的字型，但它的字距還是對齊。
+* CodeCJK**123** 是鎖定版本號的發佈。將來版本必定會增加版本數字。如果你想讓不同軟件用不同版本的 CodeCJK，就可以使用這個發佈。
 
 ## 其他
 

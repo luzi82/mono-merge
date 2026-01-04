@@ -4,11 +4,15 @@
 # In[ ]:
 
 
+# do not modify build.py directly.
+# build.py is generated from build.ipynb
+
 import argparse
 import copy
 import itertools
 import os
 import shutil
+import unicodedata
 from pathlib import Path
 
 from _func import * # just import all helper functions
@@ -909,11 +913,22 @@ output_codepointint_to_src_d_dict[64] = patch0_codepointint_to_src_d_dict[64]  #
 
 for codepointint, src_d in cjk_codepointint_to_src_d_dict.items():
     add = False
+    c = chr(codepointint)
+    eaw = unicodedata.east_asian_width(c)
     if codepointint not in output_codepointint_to_src_d_dict:
         add = True
+    elif c.isalpha() and c.isascii():
+        add = False
+    elif 'LATIN' in unicodedata.name(c).upper():
+        add = False
+    elif codepointint <= 0xFF:
+        add = False
+    elif eaw in ['F', 'W']:
+        add = True
+    elif eaw == ['Na', 'H']:
+        add = False
     elif int(src_d['width_unit']) > int(output_codepointint_to_src_d_dict[codepointint]['width_unit']):
         add = True
-
     if add:
         output_codepointint_to_src_d_dict[codepointint] = src_d
 
@@ -1129,7 +1144,145 @@ py(
     "--debug"
 )
 
-pass
+for font_size in FONT_SIZE_LIST:
+
+    py(
+        "font_preview.py",
+        "tmp/z05/output.z05.04.ttf",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        f"tmp/z05/output.z05.06.upper.{font_size:02d}",
+        "--font-size", str(font_size),
+    )
+
+    py(
+        "font_preview.py",
+        "tmp/z05/output.z05.04.ttf",
+        "abcdefghijklmnopqrstuvwxyz",
+        f"tmp/z05/output.z05.06.lower.{font_size:02d}",
+        "--font-size", str(font_size),
+    )
+
+    py(
+        "font_preview.py",
+        "tmp/z05/output.z05.04.ttf",
+        "0123456789",
+        f"tmp/z05/output.z05.06.num.{font_size:02d}",
+        "--font-size", str(font_size),
+    )
+
+    py(
+        "font_preview.py",
+        "tmp/z05/output.z05.04.ttf",
+        "~!@#$%^&*()_+`-={}|:\"<>?[]\;',./",
+        f"tmp/z05/output.z05.06.punctuation.{font_size:02d}",
+        "--font-size", str(font_size),
+    )
+
+
+# In[ ]:
+
+
+def create_font_preview(ttf_path, preview_text, output_png_path, font_size=48):
+    os.makedirs("tmp/tmp", exist_ok=True)
+    os.makedirs(os.path.dirname(output_png_path), exist_ok=True)
+
+    py(
+      "font_preview.py",
+      ttf_path,
+      preview_text,
+      "tmp/tmp/tmp",
+      "--font-size", str(font_size),
+      "--debug"
+    )
+
+    x0 = py(
+      "utils/yq.py",
+      "tmp/tmp/tmp.yaml",
+      "render_info.text_bounding_box_in_png.left",
+    )
+    x0 = int(x0)
+
+    x1 = py(
+      "utils/yq.py",
+      "tmp/tmp/tmp.yaml",
+      "render_info.text_bounding_box_in_png.right",
+      stdout=False,
+    )
+    x1 = int(x1)
+
+    y0 = py(
+      "utils/yq.py",
+      "tmp/tmp/tmp.yaml",
+      "render_info.ascent_line_y",
+      stdout=False,
+    )
+    y0 = int(y0)
+
+    y1 = py(
+      "utils/yq.py",
+      "tmp/tmp/tmp.yaml",
+      "render_info.descent_line_y",
+      stdout=False,
+    )
+    y1 = int(y1)
+
+    height = y1 - y0
+    expend = height // 8
+
+    box_x0 = x0 - expend
+    box_y0 = y0 - expend
+    box_x1 = x1 + expend
+    box_y1 = y1 + expend
+
+    linux_cmd(
+      "convert",
+      "tmp/tmp/tmp.png",
+      "-crop",
+      f"{box_x1 - box_x0}x{box_y1 - box_y0}+{box_x0}+{box_y0}",
+      output_png_path,
+    )
+
+
+# In[ ]:
+
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"中あ한 0O 1Il|",
+    str(project_root / "CodeCJK/img/debug_clip.png"),
+)
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"中 ABC",
+    str(project_root / "CodeCJK/img/vcenter.png"),
+)
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"ABC&@",
+    str(project_root / "CodeCJK/img/patch.png"),
+)
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"===",
+    str(project_root / "CodeCJK/img/no_ligatures.png"),
+)
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"E",
+    str(project_root / "CodeCJK/img/E14.png"),
+    font_size=14
+)
+
+create_font_preview(
+    "tmp/z05/output.z05.04.ttf",
+    f"E",
+    str(project_root / "CodeCJK/img/E16.png"),
+    font_size=16
+)
 
 
 # In[ ]:
@@ -1146,13 +1299,16 @@ monospace_config_list = [
 
 cross_list = itertools.product(fontname_list, monospace_config_list)
 
-os.makedirs(f"tmp/{OUTPUT_FONT_FULL_NAME}", exist_ok=True)
+if os.path.exists("tmp/zip"):
+    shutil.rmtree("tmp/zip")
+os.makedirs(f"tmp/zip", exist_ok=True)
+
 for (fontname, monospace_config) in cross_list:
     prefix = monospace_config['prefix']
     monospace = monospace_config['monospace']
 
     output_ttf_path0 = f"output/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
-    output_ttf_path1 = f"tmp/{OUTPUT_FONT_FULL_NAME}/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
+    output_ttf_path1 = f"tmp/zip/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
 
     if monospace:
         shutil.copyfile(
@@ -1185,9 +1341,35 @@ for (fontname, monospace_config) in cross_list:
         output_ttf_path1,
     )
 
+shutil.copytree(
+    str(project_root / "CodeCJK/export/"),
+    "tmp/zip/",
+    dirs_exist_ok=True,
+)
+
+shutil.make_archive(
+    f"output/{OUTPUT_FONT_FULL_NAME}",
+    'zip',
+    root_dir=f"tmp/zip"
+)
+
+pass
+
 
 # In[ ]:
 
 
-
+'''
+python -m nbconvert \
+  --clear-output \
+  --inplace CodeCJK/build.ipynb && \
+python -m nbconvert \
+  --to script CodeCJK/build.ipynb \
+  --output build \
+&& \
+rm -rf xxx && \
+mkdir xxx && \
+cd xxx && \
+python ../CodeCJK/build.py
+'''
 
