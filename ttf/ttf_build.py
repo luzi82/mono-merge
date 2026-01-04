@@ -10,6 +10,7 @@ from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input_codepoint_csv')
+    parser.add_argument('input_glyph_clone_csv')
     parser.add_argument('input_ttf_list')
     parser.add_argument('--default', required=True)
     parser.add_argument('--font-name')
@@ -43,15 +44,21 @@ def main():
         
     base_font = ttf_map[base_font_name]
     
-    # Read CSV
-    glyph_data = []
+    # Read CSVs
+    glyph_clone_data = []
+    with open(args.input_glyph_clone_csv, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            glyph_clone_data.append(row)
+
+    codepoint_data = []
     with open(args.input_codepoint_csv, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            glyph_data.append(row)
+            codepoint_data.append(row)
             
     # Sort by glyph_index
-    glyph_data.sort(key=lambda x: int(x['glyph_index']))
+    glyph_clone_data.sort(key=lambda x: int(x['glyph_index']))
     
     # Prepare new tables
     new_glyph_order = ['.notdef']
@@ -71,54 +78,17 @@ def main():
         new_glyphs['.notdef'] = Glyph()
         new_hmtx['.notdef'] = (args.xAvgCharWidth or 500, 0)
 
-    # Process CSV rows
-    for row in glyph_data:
+    # Process Glyph Clone CSV rows
+    # Check for skipped glyph_index
+    expected_index = 1
+    for row in glyph_clone_data:
         g_idx = int(row['glyph_index'])
+        if g_idx != expected_index:
+             raise ValueError(f"Skipped glyph_index: expected {expected_index}, got {g_idx}")
+        expected_index += 1
+
         src_name = row['src']
         src_g_idx = int(row['src_glyph_index'])
-        codepoint_str = row['codepoint']
-        glyph_name = row['glyph_name']
-        
-        # Parse codepoint
-        if codepoint_str.startswith('U+'):
-            codepoint = int(codepoint_str[2:], 16)
-        else:
-            try:
-                codepoint = int(codepoint_str)
-            except ValueError:
-                continue # Skip invalid codepoints
-        
-        # Ensure glyph order continuity
-        # If g_idx is 1, it should be at index 1 (0 is .notdef)
-        
-        # Handle index 0
-        if g_idx == 0:
-            # Overwrite .notdef
-            if src_name not in ttf_map:
-                raise ValueError(f"Source '{src_name}' not found in input_ttf_list")
-            src_font = ttf_map[src_name]
-            src_glyf_table = src_font['glyf']
-            src_hmtx_table = src_font['hmtx']
-            try:
-                src_glyph_name = src_font.getGlyphOrder()[src_g_idx]
-            except IndexError:
-                 raise ValueError(f"Source glyph index {src_g_idx} out of range for {src_name}")
-            glyph = src_glyf_table[src_glyph_name]
-            if glyph.isComposite():
-                raise Exception(f"Composite glyph found at {codepoint_str} from {src_name}")
-            
-            new_glyphs['.notdef'] = glyph
-            new_hmtx['.notdef'] = src_hmtx_table[src_glyph_name]
-            # .notdef is already in new_glyph_order[0]
-            continue
-
-        # Handle gaps
-        while len(new_glyph_order) < g_idx:
-            # Fill with empty glyph
-            gap_name = f"empty{len(new_glyph_order)}"
-            new_glyphs[gap_name] = Glyph()
-            new_hmtx[gap_name] = (0, 0)
-            new_glyph_order.append(gap_name)
         
         if src_name not in ttf_map:
             raise ValueError(f"Source '{src_name}' not found in input_ttf_list")
@@ -137,14 +107,34 @@ def main():
         
         # Check for composite
         if glyph.isComposite():
-            raise Exception(f"Composite glyph found at {codepoint_str} from {src_name}")
+            raise Exception(f"Composite glyph found at glyph_index {g_idx} from {src_name}")
             
         # Add to new lists
-        if glyph_name not in new_glyphs:
-            new_glyphs[glyph_name] = glyph
-            new_hmtx[glyph_name] = src_hmtx_table[src_glyph_name]
-            new_glyph_order.append(glyph_name)
+        glyph_name = f"glyph{g_idx:05d}"
+        new_glyphs[glyph_name] = glyph
+        new_hmtx[glyph_name] = src_hmtx_table[src_glyph_name]
+        new_glyph_order.append(glyph_name)
         
+    print(f"Generated {len(new_glyph_order)} glyphs. First 5: {new_glyph_order[:5]}")
+
+    # Process Codepoint CSV rows
+    for row in codepoint_data:
+        codepoint_str = row['codepoint_dec']
+        g_idx = int(row['glyph_index'])
+        
+        try:
+            codepoint = int(codepoint_str)
+        except ValueError:
+            continue # Skip invalid codepoints
+
+        if g_idx == 0:
+            # .notdef is not mapped in cmap usually
+            continue
+
+        if g_idx >= len(new_glyph_order):
+             raise ValueError(f"Glyph index {g_idx} not found in input_glyph_clone_csv (max {len(new_glyph_order)-1})")
+
+        glyph_name = new_glyph_order[g_idx]
         new_cmap[codepoint] = glyph_name
 
     # Update base_font

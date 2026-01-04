@@ -1,4 +1,6 @@
-create ttf/ttf_build.py
+change ttf/ttf_build.py
+
+from
 
 * args (all must exist)
   * input_codepoint_csv
@@ -26,6 +28,58 @@ create ttf/ttf_build.py
   * os2.panose.bProportion = 9
 * auto detect unicode and CodePage range
 
+to
+
+* args (all must exist)
+  * input_codepoint_csv
+    * store codepoint data
+    * example: CodeCJK/build/tmp/z05/output.z05.01.picksrc.codepoint.csv
+  * input_glyph_clone_csv
+    * store glyph data
+    * example: CodeCJK/build/tmp/z05/output.z05.01.picksrc.glyphclone.csv
+  * input_ttf_list
+    * format: src0:ttf0,src1:ttf1...
+  * --default
+    * specify the source of .notdef, should be one of the src in input_ttf_list
+    * also the base font to depend on
+  * --font-name
+  * --url-vendor,--vendor-id,--name-unique-id,--license,--copyright,--manufacturer,--designer
+  * --version
+  * --ascender, --descender, --xAvgCharWidth, --unitsPerEm
+  * output_ttf
+* steps
+  1. create fontTools TTFont ttfont based on default
+  2. remove all codepoint and glyph data from ttfont
+  3. add glyph data based on input_glyph_clone_csv
+    * notdef is from default notdef
+    * input_glyph_clone_csv columns
+      * glyph_index
+        * the glyph_index in output ttf
+        * the input_glyph_clone_csv should be sorted by input_glyph_clone_csv, otherwise raise exception
+        * there should be no skipped glyph_index, like [1,2,4,5] (skipped 3), otherwise raise exception
+      * src
+        * the key of glyph source
+        * the ttf file path can be found by input_ttf_list arg
+        * if src not found in input_ttf_list arg, raise exception
+      * src_glyph_index
+        * the glyph_index in source ttf
+        * if src_glyph_index not found in source ttf, raise exception
+    * all source glyf should not be composite, otherwise raise exception
+  4. add codepoint data based on input_codepoint_csv
+    * input_codepoint_csv columns
+      * codepoint_dec
+        * the codepoint
+      * glyph_index
+        * the glyph_index in input_glyph_clone_csv
+          * if the glyph_index not found in input_glyph_clone_csv, raise exception
+* post table version = 3.0
+* enable monospace
+  * post.isFixedPitch = 1
+  * os2.panose.bProportion = 9
+* auto detect unicode and CodePage range
+
+===
+
 for unicode and CodePage range detection
 see ttf/merge_font.py lin 318-330
 
@@ -33,8 +87,9 @@ example call:
 
 .venv/bin/python \
   ttf/ttf_build.py \
-  CodeCJK/build/tmp/output.z05.01.picksrc.codepoint.csv \
-  base:CodeCJK/build/tmp/base.z05.00.ttf,patch0:CodeCJK/build/tmp/patch0.z05.00.ttf,cjk:CodeCJK/build/tmp/cjk.z05.00.ttf \
+  CodeCJK/build/tmp/z05/output.z05.01.picksrc.codepoint.csv \
+  CodeCJK/build/tmp/z05/output.z05.01.picksrc.glyphclone.csv \
+  base:CodeCJK/build/tmp/z05/base.z05.00.ttf,patch0:CodeCJK/build/tmp/z05/patch0.z05.00.ttf,cjk:CodeCJK/build/tmp/z05/cjk.z05.00.ttf \
   --default=base \
   --font-name=codecjk005 \
   "--url-vendor=https://github.com/luzi82/mono-merge/blob/main/CodeCJK/CodeCJK.md" \
