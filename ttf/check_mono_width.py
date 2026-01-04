@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 check_widths.py: Check if a font contains non-standard character widths
-Identifies glyphs that don't advance by exactly 1 or 2 half-width units,
+Identifies glyphs that don't have widths that are multiples of half_width,
 which would break monospace alignment in code editors and terminals.
 """
 
@@ -64,7 +64,7 @@ def get_font_metrics(font):
 
 def check_font_widths(font_path, ttc_index=0, tolerance=0):
     """
-    Check if all glyphs advance by exactly 1 or 2 half-width units.
+    Check if all glyphs have widths that are multiples of half_width, or zero.
     Characters with other widths will misalign text in monospace contexts.
     
     Args:
@@ -104,21 +104,24 @@ def check_font_widths(font_path, ttc_index=0, tolerance=0):
             zero_width_count += 1
             continue
         
-        # Check if width advances by exactly 1 or 2 half-width units (within tolerance)
+        # Check if width is a multiple of half_width (within tolerance)
         # Non-standard widths break monospace alignment
-        is_half = abs(width - half_width) <= tolerance
-        is_full = abs(width - full_width) <= tolerance
+        remainder = width % half_width
+        is_multiple = remainder <= tolerance or (half_width - remainder) <= tolerance
         
-        if not (is_half or is_full):
+        if not is_multiple:
             char = chr(codepoint)
             char_display = repr(char)[1:-1]  # Remove quotes
+            multiple = round(width / half_width)
+            expected_width = multiple * half_width
             issues.append({
                 'codepoint': codepoint,
                 'char': char_display,
                 'glyph_name': glyph_name,
                 'width': width,
-                'deviation_from_half': width - half_width,
-                'deviation_from_full': width - full_width
+                'expected_multiple': multiple,
+                'expected_width': expected_width,
+                'deviation': width - expected_width
             })
     
     # Print results
@@ -129,8 +132,8 @@ def check_font_widths(font_path, ttc_index=0, tolerance=0):
         for issue in issues:
             print(f"  U+{issue['codepoint']:04X} '{issue['char']}' ({issue['glyph_name']})")
             print(f"    Width: {issue['width']}")
-            print(f"    Deviation from half-width: {issue['deviation_from_half']:+d}")
-            print(f"    Deviation from full-width: {issue['deviation_from_full']:+d}")
+            print(f"    Expected multiple: {issue['expected_multiple']}× half-width = {issue['expected_width']}")
+            print(f"    Deviation: {issue['deviation']:+d}")
             print()
     else:
         print(f"✓ All {len(cmap)} character(s) have standard widths")
@@ -149,7 +152,7 @@ def check_font_widths(font_path, ttc_index=0, tolerance=0):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Check if font characters advance by exactly 1 or 2 half-width units (for proper monospace alignment)',
+        description='Check if font characters have widths that are multiples of half_width (for proper monospace alignment)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
