@@ -19,7 +19,8 @@
 
 ![no_ligatures](img/no_ligatures.png)
 
-* ttfautohint 只針對 latin 區。用在中文時，字型的上下位置會非常不穩定
+* ttfautohint 只針對 latin 區。
+  * 如果用在中文，字型的上下位置會非常不穩定，所以在中文就不使用了。
   * E 字中間橫線，在不同大小時的高低位置有點不穩定。我個人希望能令它保持上位，但能力不足。
 
 ![E14](img/E14.png)
