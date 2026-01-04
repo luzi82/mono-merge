@@ -1,5 +1,9 @@
 # Versions
 
+## ???
+
+* 把 CYRILLIC 和 GREEK 撥進半形文字
+
 ## 005
 
 * Fira Code + Inconsolata + Noto Sans Mono CJK HK
