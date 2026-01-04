@@ -47,6 +47,25 @@ def main():
                     print(max_row[args.pull_column])
                 else:
                     sys.exit(1)
+            # Handle __MIN__ special case
+            elif args.search_value == "__MIN__":
+                min_row = None
+                min_value = None
+                
+                for row in reader:
+                    try:
+                        current_value = float(row[args.search_column])
+                        if min_value is None or current_value < min_value:
+                            min_value = current_value
+                            min_row = row
+                    except ValueError:
+                        # Skip rows with non-numeric values
+                        continue
+                
+                if min_row is not None:
+                    print(min_row[args.pull_column])
+                else:
+                    sys.exit(1)
             # Handle __xx%__ percentile pattern
             elif re.match(r'^__\d+%__$', args.search_value):
                 # Extract percentile value

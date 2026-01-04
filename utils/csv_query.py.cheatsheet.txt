@@ -1,5 +1,18 @@
 Change utils/csv_query.py
 
+from
+
+* args
+  * input_csv: the csv to csv_query
+  * search_column: the column to search
+  * search_value: the value to search
+    * if search_value = "__MAX__", search the max value
+    * if search_value = "__xx%__", search the xx% highest
+  * pull_column: the column to pull out
+* scan the csv, when there exist search_column = search_value, print out the value of pull_column
+* if search_column or pull_column not exist, exit 1
+* if value not find, exit 1
+
 to
 
 * args
@@ -7,6 +20,7 @@ to
   * search_column: the column to search
   * search_value: the value to search
     * if search_value = "__MAX__", search the max value
+    * if search_value = "__MIN__", search the min value
     * if search_value = "__xx%__", search the xx% highest
   * pull_column: the column to pull out
 * scan the csv, when there exist search_column = search_value, print out the value of pull_column
