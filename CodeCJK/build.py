@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[158]:
+# In[ ]:
 
 
 import argparse
@@ -14,7 +14,7 @@ from pathlib import Path
 from _func import * # just import all helper functions
 
 
-# In[2]:
+# In[ ]:
 
 
 OUTPUT_FONT_NAME = "CodeCJK"
@@ -52,7 +52,7 @@ FONT_KEY_LIST = [font["id"] for font in SRC_FONT_LIST]
 
 
 
-# In[3]:
+# In[ ]:
 
 
 # check if running in a notebook
@@ -74,7 +74,7 @@ IN_NOTEBOOK = is_notebook()
 print(f"Running in notebook: {IN_NOTEBOOK}")
 
 
-# In[4]:
+# In[ ]:
 
 
 if IN_NOTEBOOK:
@@ -89,7 +89,7 @@ if IN_NOTEBOOK:
     os.chdir(str(original_cwd / "build"))
 
 
-# In[5]:
+# In[ ]:
 
 
 if not IN_NOTEBOOK:
@@ -106,7 +106,7 @@ if not IN_NOTEBOOK:
         print("Cleaned.")
 
 
-# In[6]:
+# In[ ]:
 
 
 def ttf_milestone(next_milestone):
@@ -138,7 +138,7 @@ def ttf_milestone(next_milestone):
         )
 
 
-# In[8]:
+# In[ ]:
 
 
 # Get script and project directories
@@ -148,7 +148,7 @@ print(f"Script directory: {script_dir}")
 print(f"Project root directory: {project_root}")
 
 
-# In[9]:
+# In[ ]:
 
 
 # Create folders
@@ -158,20 +158,20 @@ os.makedirs("output", exist_ok=True)
 print("Created tmp and output folders")
 
 
-# In[10]:
+# In[ ]:
 
 
 os.makedirs("tmp/z00", exist_ok=True)
 
 
-# In[11]:
+# In[ ]:
 
 
 # Download and prepare fonts (includes MD5 verification)
 download_fonts(SRC_FONT_LIST,'tmp/z00')
 
 
-# In[12]:
+# In[ ]:
 
 
 # Set up Python environment
@@ -179,7 +179,7 @@ python_exe = setup_python_environment()
 print(f"Using Python executable: {python_exe}")
 
 
-# In[13]:
+# In[ ]:
 
 
 for font_key in FONT_KEY_LIST:
@@ -189,13 +189,13 @@ for font_key in FONT_KEY_LIST:
     )
 
 
-# In[14]:
+# In[ ]:
 
 
 ttf_milestone(1)
 
 
-# In[15]:
+# In[ ]:
 
 
 print("Clear unused data from ttf files")
@@ -227,13 +227,13 @@ for font_key in FONT_KEY_LIST:
     )
 
 
-# In[16]:
+# In[ ]:
 
 
 ttf_milestone(2)
 
 
-# In[17]:
+# In[ ]:
 
 
 # decompose composite glyphs
@@ -296,13 +296,13 @@ for font_key in FONT_KEY_LIST:
     )
 
 
-# In[18]:
+# In[ ]:
 
 
 ttf_milestone(3)
 
 
-# In[19]:
+# In[ ]:
 
 
 # rm unused glyphs
@@ -352,13 +352,13 @@ for font_key in FONT_KEY_LIST:
 
 
 
-# In[20]:
+# In[ ]:
 
 
 ttf_milestone(4)
 
 
-# In[21]:
+# In[ ]:
 
 
 # get base font informations
@@ -408,7 +408,7 @@ print("Base font big max height:", base_big_max_height)
 pass
 
 
-# In[41]:
+# In[ ]:
 
 
 py(
@@ -447,7 +447,7 @@ py(
 pass
 
 
-# In[23]:
+# In[ ]:
 
 
 # Make a copy of base font as final checkpoint
@@ -459,7 +459,7 @@ shutil.copyfile(
 pass
 
 
-# In[24]:
+# In[ ]:
 
 
 ## Scale patch0 font to match base font
@@ -486,7 +486,7 @@ patch0_scale_factor = float(base_big_max_height) / float(patch0_big_max_height)
 print("Patch0 font scale factor:", patch0_scale_factor)
 
 
-# In[25]:
+# In[ ]:
 
 
 # Scale patch0 font
@@ -515,7 +515,7 @@ py(
 pass
 
 
-# In[26]:
+# In[ ]:
 
 
 # update units_per_em, ascent, descent
@@ -571,7 +571,7 @@ py(
 pass
 
 
-# In[42]:
+# In[ ]:
 
 
 # modify advance_width of patch0.scaled.ttf to match base font half advance width
@@ -622,7 +622,7 @@ shutil.copyfile(
 pass
 
 
-# In[28]:
+# In[ ]:
 
 
 # scale cjk font
@@ -641,7 +641,7 @@ cjk_scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width
 print("CJK font scale factor:", cjk_scale_factor)
 
 
-# In[29]:
+# In[ ]:
 
 
 # Scale cjk font
@@ -664,14 +664,34 @@ py(
 pass
 
 
-# In[43]:
+# In[ ]:
 
+
+# check 2E3A and 2E3B glyph id
+
+u2E3A_glyph_id = py(
+    "utils/csv_query.py",
+    "tmp/z04/cjk.z04.01.ttf.codepoint.csv",
+    "codepoint", "U+2E3A",
+    "glyph_index",
+    stdout=False,
+)
+u2E3B_glyph_id = py(
+    "utils/csv_query.py",
+    "tmp/z04/cjk.z04.01.ttf.codepoint.csv",
+    "codepoint", "U+2E3B",
+    "glyph_index",
+    stdout=False,
+)
+print(f"U+2E3A glyph id: {u2E3A_glyph_id}")
+print(f"U+2E3B glyph id: {u2E3B_glyph_id}")
 
 # modify advance_width of cjk.scaled.ttf to match base font half advance width
 print("Modifying advance_width of cjk.scaled.ttf to match base font half advance width...")
 py(
     "ttf/cal_shift_x_csv.py",
     "tmp/z04/cjk.z04.01.ttf.glyph.csv",
+    "--update-width-unit", f"{u2E3A_glyph_id}:4,{u2E3B_glyph_id}:6",
     str(base_half_advance_width),
     "tmp/z04/cjk.z04.02.shift_x.csv"
 )
@@ -705,7 +725,7 @@ py(
 pass
 
 
-# In[44]:
+# In[ ]:
 
 
 # y shift
@@ -746,7 +766,7 @@ cjk_shift_y = int(base_anchor_y - cjk_anchor_y)
 print("CJK font shift y:", cjk_shift_y)
 
 
-# In[45]:
+# In[ ]:
 
 
 py(
@@ -759,7 +779,7 @@ py(
 pass
 
 
-# In[46]:
+# In[ ]:
 
 
 shutil.copyfile(
@@ -768,13 +788,13 @@ shutil.copyfile(
 )
 
 
-# In[133]:
+# In[ ]:
 
 
 ttf_milestone(5)
 
 
-# In[134]:
+# In[ ]:
 
 
 # py(
@@ -851,7 +871,7 @@ print("unitsPerEm:", unitsPerEm)
 pass
 
 
-# In[135]:
+# In[ ]:
 
 
 fontkey_to_fontdata_dict = {}
@@ -888,7 +908,13 @@ output_codepointint_to_src_d_dict[38] = patch0_codepointint_to_src_d_dict[38]  #
 output_codepointint_to_src_d_dict[64] = patch0_codepointint_to_src_d_dict[64]  # '@'
 
 for codepointint, src_d in cjk_codepointint_to_src_d_dict.items():
+    add = False
     if codepointint not in output_codepointint_to_src_d_dict:
+        add = True
+    elif int(src_d['width_unit']) > int(output_codepointint_to_src_d_dict[codepointint]['width_unit']):
+        add = True
+
+    if add:
         output_codepointint_to_src_d_dict[codepointint] = src_d
 
 output_codepoint_dl = list(output_codepointint_to_src_d_dict.values())
@@ -945,7 +971,7 @@ write_csv(
 )
 
 
-# In[151]:
+# In[ ]:
 
 
 # gen string
@@ -966,7 +992,7 @@ name_list_str = " + ".join(name_list)
 long_description = f"Luzi82, merging {name_list_str}"
 
 
-# In[154]:
+# In[ ]:
 
 
 # Get datetime string
@@ -1007,7 +1033,7 @@ py(
 pass
 
 
-# In[166]:
+# In[ ]:
 
 
 # final checking
@@ -1038,7 +1064,7 @@ py(
 )
 
 
-# In[156]:
+# In[ ]:
 
 
 linux_cmd(
@@ -1052,7 +1078,7 @@ linux_cmd(
 check_font("tmp/z05/output.z05.04.ttf")
 
 
-# In[157]:
+# In[ ]:
 
 
 py(
@@ -1120,11 +1146,13 @@ monospace_config_list = [
 
 cross_list = itertools.product(fontname_list, monospace_config_list)
 
+os.makedirs(f"tmp/{OUTPUT_FONT_FULL_NAME}", exist_ok=True)
 for (fontname, monospace_config) in cross_list:
     prefix = monospace_config['prefix']
     monospace = monospace_config['monospace']
 
-    output_ttf_path = f"output/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
+    output_ttf_path0 = f"output/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
+    output_ttf_path1 = f"tmp/{OUTPUT_FONT_FULL_NAME}/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
 
     if monospace:
         shutil.copyfile(
@@ -1150,6 +1178,16 @@ for (fontname, monospace_config) in cross_list:
 
     shutil.copyfile(
         "tmp/z05/tmp1.ttf",
-        output_ttf_path,
+        output_ttf_path0,
     )
+    shutil.copyfile(
+        "tmp/z05/tmp1.ttf",
+        output_ttf_path1,
+    )
+
+
+# In[ ]:
+
+
+
 
