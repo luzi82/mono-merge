@@ -46,6 +46,10 @@ python CodeCJK/build.py
 * **P**CodeCJK 是沒有註明 monospace 的字型，但它的字距還是對齊。
 * CodeCJK**123** 是鎖定版本號的發佈。將來版本必定會增加版本數字。如果你想讓不同軟件用不同版本的 CodeCJK，就可以使用這個發佈。
 
+## License
+
+SIL Open Font License, Version 1.1
+
 ## 其他
 
 * CodeCJK *是字型檔，不是字型*。因為它只是直接使用坊間既有的字型，而沒有設計自己的字型。
