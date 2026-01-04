@@ -33,7 +33,7 @@
 
 ## 下載
 
-[CodeCJK004](https://www.dropbox.com/scl/fo/d5k6lswmoa31vuvgooshe/AEa-e7DcBrXNyI5zDMiW3KI?rlkey=5c1ftf6xpk7n0apns5xw500zn&st=61aq0pv6&dl=0)
+[CodeCJK005](https://github.com/luzi82/mono-merge/releases/tag/CodeCJK005)
 
 ## 如何生成 CodeCJK 字型檔
 
