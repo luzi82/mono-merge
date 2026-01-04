@@ -10,10 +10,18 @@ def main():
         description='Calculate x-shift and new advance width for characters'
     )
     parser.add_argument('input_csv', help='Input CSV file from dump_char_csv.py')
+    parser.add_argument('--update-width-unit', help='Override width_unit for specific glyphs (format: glyph_id0:width_unit0,glyph_id1:width_unit1)', default='')
     parser.add_argument('advance_width', type=int, help='Target advance width for half-width characters')
     parser.add_argument('output_csv', help='Output CSV file with shift_x and new_advance_width columns')
     
     args = parser.parse_args()
+    
+    # Parse update-width-unit parameter
+    width_unit_overrides = {}
+    if args.update_width_unit:
+        for pair in args.update_width_unit.split(','):
+            glyph_index, width_unit = pair.split(':')
+            width_unit_overrides[glyph_index] = int(width_unit)
     
     # Read input CSV and process
     with open(args.input_csv, 'r', encoding='utf-8') as infile, \
@@ -28,7 +36,15 @@ def main():
         
         for row in reader:
             old_advance_width = int(row['advance_width'])
-            width_unit = int(row['width_unit'])
+            glyph_index = row['glyph_index']
+            
+            # Check if width_unit should be overridden
+            if glyph_index in width_unit_overrides:
+                width_unit = width_unit_overrides[glyph_index]
+                row['width_unit'] = width_unit
+            else:
+                width_unit = int(row['width_unit'])
+            
             is_empty_glyph = row['is_empty_glyph'].lower() == 'true'
             
             # Calculate new advance width based on width_unit
