@@ -194,36 +194,6 @@ Create a script csv_compare_box.py to compare two csv
 
 ===
 
-Create a script ttf/scale_ttf.py
-
-* args
-  * input_scale_ttf: the ttf to be scaled, e.g. input\NotoSansMonoCJKhk-VF.ttf
-  * input_target_ttf: the ttf to be matched, e.g. input\JetBrainsMonoNL-Regular.ttf
-  * output_ttf: the scaled ttf
-* get the advance width of char O from input_scale_ttf, input_target_ttf
-  * if the width match, just copy input_scale_ttf to output_ttf
-  * other wise, scale the input_scale_ttf to match input_target_ttf
-* advance width should be scaled
-* all glyph should be scaled
-* Hinting should be scaled
-* units_per_em should NOT be scaled
-* All other coordinate should be scaled
-* the center of scaling should be 0,0
-
-===
-
-Create a script utils/csv_query.py
-* args
-  * input_csv: the csv to csv_query
-  * search_column: the column to search
-  * search_value: the value to search
-  * pull_column: the column to pull out
-* scan the csv, when there exist search_column = search_value, print out the value of pull_column
-* if search_column or pull_column not exist, exit 1
-* if value not find, exit 1
-
-===
-
 Create a script ttf/ttf_replace_meta.py
 * args
   * input_ttf
@@ -247,33 +217,6 @@ Convert CodeCJK\build.sh to CodeCJK\build.py
 * The output and tmp folders are created in working folder
 
 a09618fdaaa2aef4b7b45e26b7267763
-
-===
-
-create ttf/cal_x_shift_csv.py
-* args
-  * input_csv
-  * advance_width
-  * output_csv
-* for half width char, new_advance_width = advance_width
-* for full width char, new_advance_width = advance_width * 2
-* shift_x = (new_advance_width-old_advance_width)/2
-* put shift_x column and new_advance_width to csv
-
-
-create ttf/modify_advance_width.py
-* args
-  * input_ttf
-  * input_shift_x_csv
-    * created by ttf/cal_x_shift_csv.py
-  * output_ttf
-* update the advance_width and x position of each char
-
-python \
-  ttf/modify_advance_width.py \
-  CodeCJK/build/tmp/patch0.scaled.ttf \
-  "CodeCJK/build/tmp/patch0.scaled.char.shift_x.csv" \
-  "CodeCJK/build/tmp/patch0.scaled.aw.ttf"
 
 ===
 
@@ -576,47 +519,6 @@ in CodeCJK/_func.py
 
 ===
 
-in ttf/scale_ttf.py
-* change arg input_scale_ttf to input_ttf
-* after arg input_ttf, add arg input_glyph_csv
-  * example: CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv
-* in input_glyph_csv, if cmap_used >= 1 and glyf_used >= 1, raise exception
-* in input_glyph_csv, if cmap_used >= 1, scale up the glyph
-* in input_glyph_csv, use glyph_index to match glyph, not glyph_name
-* if vmtx or vhea exist, raise exception
-
-2.206625
-
-.venv/bin/python \
-    "ttf/dump_data_yaml.py" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf.data.yaml"
-
-.venv/bin/python \
-    "ttf/dump_char_csv.py" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf" && \
-.venv/bin/python \
-    "ttf/scale_ttf.py" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf" \
-    "CodeCJK/build/tmp/patch0.z01.00.ttf.glyph.csv" \
-    2.206625 \
-    "CodeCJK/build/tmp/patch0.z01.02.ttf" && \
-.venv/bin/python \
-    "ttf/dump_char_csv.py" \
-    "CodeCJK/build/tmp/patch0.z01.02.ttf"
-
-.venv/bin/python \
-    "ttf/dump_data_yaml.py" \
-    "CodeCJK/build/tmp/patch0.z01.02.ttf" \
-    "CodeCJK/build/tmp/patch0.z01.02.ttf.data.yaml"
-
-comparing CodeCJK/build/tmp/patch0.z01.00.ttf.codepoint.csv and CodeCJK/build/tmp/patch0.z01.02.ttf.codepoint.csv
-it show most characters, for example, A, are not scaled well
-
-pass
-
-===
-
 Create new script ttf/ttf_decompose_composite_glyph.py
 * args:
   * input_ttf, output_ttf
@@ -633,15 +535,6 @@ Create new script ttf/ttf_decompose_composite_glyph.py
 
 in CodeCJK/build/tmp/base.z01.01.ttf.codepoint.csv, line 116,
 it show is_composite=True
-
-===
-
-Create new script utils/csv_set_col.py
-* args:
-  * input_csv
-  * key_value_pairs
-    * format example: key0:value0,key1:value1...
-  * output_csv
 
 ===
 
@@ -664,17 +557,58 @@ from
 
 ===
 
-Create script ttf/ttf_set_data.py
+Update script ttf/ttf_set_data.py
 
-* args:
-  * input_ttf
+from
+
+* args (all optional unless specify)
+  * input_ttf (must)
   * units_per_em
-    * optional
-    * update head.unitsPerEm
-  * output_ttf
+    * update unitsPerEm
+  * ascender
+  * descender
+  * output_ttf (must)
+
 
 ===
 
 change ttf/dump_data_yaml.py
 * hide tableTag in output_yaml
 * reference: CodeCJK/build/tmp/patch0.z04.00.ttf.data.yaml
+
+===
+
+python \
+  font_preview.py \
+  CodeCJK/build/tmp/patch0.z04.03.ttf \
+  "Hello World" \
+  CodeCJK/build/tmp/patch0.z04.03.ttf \
+  --debug
+
+===
+
+in CodeCJK/_func.py
+* add function read_csv
+  * args
+    * input_csv
+      * path of input csv
+  * return list of dict
+* add function write_csv
+  * args
+    * data
+      * list of dict
+    * columns
+      * string list, columns to output
+    * output_csv
+      * path of output csv
+
+ttfautohint \
+    "--ignore-restrictions" \
+    "-f" "none" "--no-fallback-script" \
+    "tmp/z05/output.z05.02.ttf" \
+    "tmp/z05/output.z05.03.ttf"
+
+python -m nbconvert \
+  --to script CodeCJK/test.ipynb \
+  --output build
+

@@ -1,22 +1,21 @@
-#!/usr/bin/env python3
-"""
-CodeCJK Font Build Script
+#!/usr/bin/env python
+# coding: utf-8
 
-This script builds the CodeCJK font by:
-1. Downloading required font files
-2. Scaling and shifting the CJK font to match the Latin font
-3. Merging the fonts together
-4. Creating variant fonts with different metadata
+# In[158]:
 
-The script can be run from any folder and works on both Linux and Windows.
-Output and tmp folders are created in the working directory.
-"""
 
 import argparse
+import copy
+import itertools
 import os
 import shutil
+from pathlib import Path
 
 from _func import * # just import all helper functions
+
+
+# In[2]:
+
 
 OUTPUT_FONT_NAME = "CodeCJK"
 OUTPUT_FONT_VERSION = "005"
@@ -47,22 +46,100 @@ SRC_FONT_LIST = [
     },
 ]
 
+SRC_FONT_DICT = {font["id"]: font for font in SRC_FONT_LIST}
 
-parser = argparse.ArgumentParser(description='Build CodeCJK font')
-parser.add_argument('--clean', action='store_true', help='Clean output and tmp folders before building')
-args = parser.parse_args()
+FONT_KEY_LIST = [font["id"] for font in SRC_FONT_LIST]
 
-if args.clean:
-    print("Cleaning output and tmp folders...")
-    if os.path.exists("tmp"):
-        shutil.rmtree("tmp")
-    if os.path.exists("output"):
-        shutil.rmtree("output")
-    print("Cleaned.")
 
-# Get datetime string
-YYYYMMDDHHMMSS = get_datetime_string()
-print(f"Current datetime: {YYYYMMDDHHMMSS}")
+
+# In[3]:
+
+
+# check if running in a notebook
+
+def is_notebook():
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
+IN_NOTEBOOK = is_notebook()
+
+print(f"Running in notebook: {IN_NOTEBOOK}")
+
+
+# In[4]:
+
+
+if IN_NOTEBOOK:
+    # get this ipynb script directory
+    if 'original_cwd' not in globals():
+        original_cwd = Path(os.getcwd())
+        if os.path.exists(str(original_cwd / "build")):
+            shutil.rmtree(str(original_cwd / "build"))
+    # mkdir build
+    os.makedirs(str(original_cwd / "build"), exist_ok=True)
+    # change working directory to build
+    os.chdir(str(original_cwd / "build"))
+
+
+# In[5]:
+
+
+if not IN_NOTEBOOK:
+    parser = argparse.ArgumentParser(description='Build CodeCJK font')
+    parser.add_argument('--clean', action='store_true', help='Clean output and tmp folders before building')
+    args = parser.parse_args()
+
+    if args.clean:
+        print("Cleaning output and tmp folders...")
+        if os.path.exists("tmp"):
+            shutil.rmtree("tmp")
+        if os.path.exists("output"):
+            shutil.rmtree("output")
+        print("Cleaned.")
+
+
+# In[6]:
+
+
+def ttf_milestone(next_milestone):
+    last_milestone_str = f"{int(next_milestone)-1:02d}"
+    next_milestone_str = f"{int(next_milestone):02d}"
+
+    os.makedirs(f"tmp/z{next_milestone_str}", exist_ok=True)
+
+    print(f"Z{next_milestone_str} milestone")
+    for font_key in FONT_KEY_LIST:
+
+        check_font(
+            f"tmp/z{last_milestone_str}/{font_key}.z{last_milestone_str}.99.ttf"
+        )
+
+        shutil.copyfile(
+            f"tmp/z{last_milestone_str}/{font_key}.z{last_milestone_str}.99.ttf",
+            f"tmp/z{next_milestone_str}/{font_key}.z{next_milestone_str}.00.ttf"
+        )
+
+        py(
+            "ttf/dump_data_yaml.py",
+            f"tmp/z{next_milestone_str}/{font_key}.z{next_milestone_str}.00.ttf",
+            f"tmp/z{next_milestone_str}/{font_key}.z{next_milestone_str}.00.ttf.data.yaml",
+        )
+        py(
+            "ttf/dump_char_csv.py",
+            f"tmp/z{next_milestone_str}/{font_key}.z{next_milestone_str}.00.ttf",
+        )
+
+
+# In[8]:
+
 
 # Get script and project directories
 script_dir = get_script_dir()
@@ -70,264 +147,1009 @@ project_root = get_project_root()
 print(f"Script directory: {script_dir}")
 print(f"Project root directory: {project_root}")
 
+
+# In[9]:
+
+
 # Create folders
 """Create tmp and output folders in the working directory."""
 os.makedirs("tmp", exist_ok=True)
 os.makedirs("output", exist_ok=True)
 print("Created tmp and output folders")
 
+
+# In[10]:
+
+
+os.makedirs("tmp/z00", exist_ok=True)
+
+
+# In[11]:
+
+
 # Download and prepare fonts (includes MD5 verification)
-download_fonts(SRC_FONT_LIST)
+download_fonts(SRC_FONT_LIST,'tmp/z00')
+
+
+# In[12]:
+
 
 # Set up Python environment
-setup_python_environment()
+python_exe = setup_python_environment()
+print(f"Using Python executable: {python_exe}")
 
-# Dump input font char CSV
-print("Dumping input font char CSV...")
-py(
-    "ttf/dump_char_csv.py",
-    "tmp/base.ttf",
-    "tmp/base.char.csv"
-)
-py(
-    "ttf/dump_char_csv.py",
-    "tmp/patch0.ttf",
-    "tmp/patch0.char.csv"
-)
-py(
-    "ttf/dump_char_csv.py",
-    "tmp/cjk.ttf",
-    "tmp/cjk.char.csv"
-)
 
-# Get the advance_width of char O
-print("Getting advance width of character 'O'...")
-base_half_advance_width = py(
-    "utils/csv_query.py",
-    "tmp/base.char.csv",
-    "codepoint_dec", "79",
-    "advance_width"
-)
-cjk_half_advance_width = py(
-    "utils/csv_query.py",
-    "tmp/cjk.char.csv",
-    "codepoint_dec", "79",
-    "advance_width"
-)
-print(f"Base half advance width: {base_half_advance_width}")
-print(f"CJK half advance width: {cjk_half_advance_width}")
+# In[13]:
+
+
+for font_key in FONT_KEY_LIST:
+    shutil.copyfile(
+        f"tmp/z00/{font_key}.ttf",
+        f"tmp/z00/{font_key}.z00.99.ttf",
+    )
+
+
+# In[14]:
+
+
+ttf_milestone(1)
+
+
+# In[15]:
+
+
+print("Clear unused data from ttf files")
+for font_key in FONT_KEY_LIST:
+
+    linux_cmd(
+        "ttfautohint",
+        "--dehint",
+        f"tmp/z01/{font_key}.z01.00.ttf",
+        f"tmp/z01/{font_key}.z01.01.ttf",
+    )
+
+    py(
+        "ttf/ttf_rm_table.py",
+        f"tmp/z01/{font_key}.z01.01.ttf",
+        "GPOS,GSUB,vmtx,vhea,VORG,gasp,DSIG",
+        f"tmp/z01/{font_key}.z01.02.ttf",
+    )
+
+    py(
+        "ttf/ttf_post3.py",
+        f"tmp/z01/{font_key}.z01.02.ttf",
+        f"tmp/z01/{font_key}.z01.03.ttf"
+    )
+
+    shutil.copyfile(
+        f"tmp/z01/{font_key}.z01.03.ttf",
+        f"tmp/z01/{font_key}.z01.99.ttf",
+    )
+
+
+# In[16]:
+
+
+ttf_milestone(2)
+
+
+# In[17]:
+
+
+# decompose composite glyphs
+print("Decomposing composite glyphs...")
+for font_key in FONT_KEY_LIST:
+    py(
+        "ttf/ttf_decompose_composite_glyph.py",
+        f"tmp/z02/{font_key}.z02.00.ttf",
+        f"tmp/z02/{font_key}.z02.01.ttf"
+    )
+
+    py(
+        "ttf/dump_char_csv.py",
+        f"tmp/z02/{font_key}.z02.01.ttf",
+    )
+
+    py(
+        "utils/csv_rm_column.py",
+        f"tmp/z02/{font_key}.z02.00.ttf.codepoint.csv",
+        "glyph_index,glyph_name,cmap_used,num_contours",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.expected.0.csv",
+    )
+    py(
+        "utils/csv_set_col.py",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.expected.0.csv",
+        "is_composite:False,glyf_used:0,num_glyph:0",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.expected.9.csv",
+    )
+    py(
+        "utils/csv_rm_column.py",
+        f"tmp/z02/{font_key}.z02.01.ttf.codepoint.csv",
+        "glyph_index,glyph_name,cmap_used,num_contours",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.actual.csv",
+    )
+    py(
+        "utils/diff.py",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.expected.9.csv",
+        f"tmp/z02/{font_key}.z02.02.ttf.codepoint.actual.csv",
+    )
+
+    num_contours_list = py(
+        "utils/csv_dump_col.py",
+        f"tmp/z02/{font_key}.z02.01.ttf.codepoint.csv",
+        "num_contours",
+        stdout = False,
+    ).split('\n')
+    assert('-1' not in num_contours_list), "Error: still have composite glyphs!"
+
+    is_composite_list = py(
+        "utils/csv_dump_col.py",
+        f"tmp/z02/{font_key}.z02.01.ttf.glyph.csv",
+        "is_composite",
+        stdout = False,
+    ).split('\n')
+    assert('True' not in is_composite_list), "Error: still have composite glyphs!"
+
+    shutil.copyfile(
+        f"tmp/z02/{font_key}.z02.01.ttf",
+        f"tmp/z02/{font_key}.z02.99.ttf",
+    )
+
+
+# In[18]:
+
+
+ttf_milestone(3)
+
+
+# In[19]:
+
+
+# rm unused glyphs
+for font_key in FONT_KEY_LIST:
+
+    py(
+        "ttf/glyphcsv_used_mark_rm.py",
+        f"tmp/z03/{font_key}.z03.00.ttf.glyph.csv",
+        f"tmp/z03/{font_key}.z03.00.ttf.glyphref.csv",
+        f"tmp/z03/{font_key}.z03.01.rm_glyph.csv"
+    )
+
+    py(
+        "ttf/ttf_rm_glyph.py",
+        f"tmp/z03/{font_key}.z03.00.ttf",
+        f"tmp/z03/{font_key}.z03.01.rm_glyph.csv",
+        f"tmp/z03/{font_key}.z03.02.ttf"
+    )
+
+    py(
+        "ttf/dump_char_csv.py",
+        f"tmp/z03/{font_key}.z03.02.ttf",
+    )
+
+    py(
+        "utils/csv_rm_column.py",
+        f"tmp/z03/{font_key}.z03.00.ttf.codepoint.csv",
+        "glyph_index,glyph_name",
+        f"tmp/z03/{font_key}.z03.03.ttf.codepoint.expected.csv",
+    )
+    py(
+        "utils/csv_rm_column.py",
+        f"tmp/z03/{font_key}.z03.02.ttf.codepoint.csv",
+        "glyph_index,glyph_name",
+        f"tmp/z03/{font_key}.z03.03.ttf.codepoint.actual.csv",
+    )
+    py(
+        "utils/diff.py",
+        f"tmp/z03/{font_key}.z03.03.ttf.codepoint.expected.csv",
+        f"tmp/z03/{font_key}.z03.03.ttf.codepoint.actual.csv",
+    )
+
+    shutil.copyfile(
+        f"tmp/z03/{font_key}.z03.02.ttf",
+        f"tmp/z03/{font_key}.z03.99.ttf",
+    )
+
+
+
+# In[20]:
+
+
+ttf_milestone(4)
+
+
+# In[21]:
+
+
+# get base font informations
 
 # Get ASCII chars from base font
 print("Getting ASCII characters from base font...")
 py(
     "ttf/filter_char_csv.py",
-    "tmp/base.char.csv",
+    "tmp/z04/base.z04.00.ttf.codepoint.csv",
     "ascii",
-    "tmp/base.ascii.char.csv"
+    "tmp/z04/base.z04.01.ascii.csv"
 )
 
 # Get big chars from base font
 print("Getting big characters from base font...")
 py(
     "ttf/filter_char_csv.py",
-    "tmp/base.char.csv",
+    "tmp/z04/base.z04.00.ttf.codepoint.csv",
     "upper,number",
-    "tmp/base.big.char.csv"
+    "tmp/z04/base.z04.01.big.csv"
 )
+
+base_half_advance_width = py(
+    "utils/csv_query.py",
+    "tmp/z04/base.z04.00.ttf.codepoint.csv",
+    "codepoint_dec", "79", "advance_width",
+    stdout=False,
+)
+base_half_advance_width = int(base_half_advance_width)
+print("Base font half advance width:", base_half_advance_width)
+
+base_big_max_height = py(
+    "utils/csv_query.py",
+    "tmp/z04/base.z04.01.big.csv",
+    "yMax", "__MAX__", "yMax",
+    stdout=False,
+)
+base_big_max_height = int(base_big_max_height)
+print("Base font big max height:", base_big_max_height)
+
+# # Make a copy of base font as final checkpoint
+# shutil.copyfile(
+#     "tmp/z04/base.z04.00.ttf",
+#     "tmp/z04/base.z04.99.ttf",
+# )
+
+pass
+
+
+# In[41]:
+
+
+py(
+    "ttf/cal_shift_x_csv.py",
+    "tmp/z04/base.z04.00.ttf.glyph.csv",
+    str(base_half_advance_width),
+    "tmp/z04/base.z04.01.shift_x.csv"
+)
+
+py(
+    "ttf/modify_advance_width.py",
+    "tmp/z04/base.z04.00.ttf",
+    "tmp/z04/base.z04.01.shift_x.csv",
+    "tmp/z04/base.z04.02.ttf"
+)
+
+# check shift_x result
+
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z04/base.z04.02.ttf",
+)
+
+py(
+    "utils/csv_rm_column.py",
+    "tmp/z04/base.z04.01.shift_x.csv",
+    "shift_x",
+    "tmp/z04/base.z04.03.expect.glyph.csv",
+)
+py(
+    "utils/diff.py",
+    "tmp/z04/base.z04.02.ttf.glyph.csv",
+    "tmp/z04/base.z04.03.expect.glyph.csv",
+)
+
+pass
+
+
+# In[23]:
+
+
+# Make a copy of base font as final checkpoint
+shutil.copyfile(
+    "tmp/z04/base.z04.02.ttf",
+    "tmp/z04/base.z04.99.ttf",
+)
+
+pass
+
+
+# In[24]:
+
 
 ## Scale patch0 font to match base font
-
-print("Scaling patch0 font to match base font...")
-patch0_half_advance_width = py(
-    "utils/csv_query.py",
-    "tmp/patch0.char.csv",
-    "codepoint_dec", "79",
-    "advance_width"
-)
-print(f"Patch0 half advance width: {patch0_half_advance_width}")
 
 # Get big chars from patch0 font
 print("Getting big characters from patch0 font...")
 py(
     "ttf/filter_char_csv.py",
-    "tmp/patch0.char.csv",
+    "tmp/z04/patch0.z04.00.ttf.codepoint.csv",
     "upper,number",
-    "tmp/patch0.big.char.csv"
+    "tmp/z04/patch0.z04.01.big.csv"
 )
 
-## Scale CJK font to match base font
+patch0_big_max_height = py(
+    "utils/csv_query.py",
+    "tmp/z04/patch0.z04.01.big.csv",
+    "yMax", "__MAX__", "yMax",
+    stdout=False,
+)
+patch0_big_max_height = int(patch0_big_max_height)
+print("Patch0 font big max height:", patch0_big_max_height)
 
-# Calculate CJK scale factor
-cjk_scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width)
-print(f"Scale factor: {cjk_scale_factor}")
+patch0_scale_factor = float(base_big_max_height) / float(patch0_big_max_height)
+print("Patch0 font scale factor:", patch0_scale_factor)
 
-# Scale CJK font
-print("Scaling CJK font...")
+
+# In[25]:
+
+
+# Scale patch0 font
+print("Scaling patch0 font...")
 py(
     "ttf/scale_ttf.py",
-    "tmp/cjk.ttf",
-    str(cjk_scale_factor),
-    "tmp/cjk-Scaled.ttf"
+    "tmp/z04/patch0.z04.00.ttf",
+    "tmp/z04/patch0.z04.00.ttf.glyph.csv",
+    str(patch0_scale_factor),
+    "tmp/z04/patch0.z04.02.ttf"
 )
 
-# Dump scaled font char CSV
-print("Dumping scaled font char CSV...")
+# Dump scaled patch0 font char CSV
+print("Dumping scaled patch0 font char CSV...")
 py(
     "ttf/dump_char_csv.py",
-    "tmp/cjk-Scaled.ttf",
-    "tmp/cjk-Scaled.char.csv"
+    "tmp/z04/patch0.z04.02.ttf"
 )
 
-# Get common CJK chars from scaled CJK font
-print("Getting common CJK characters from scaled CJK font...")
+# py(
+#     "ttf/dump_data_yaml.py",
+#     "tmp/patch0.z04.02.ttf",
+#     "tmp/patch0.z04.02.ttf.data.yaml",
+# )
+
+pass
+
+
+# In[26]:
+
+
+# update units_per_em, ascent, descent
+
+## get base font units_per_em
+base_units_per_em = py(
+    "utils/yq.py",
+    "tmp/z04/base.z04.00.ttf.data.yaml",
+    "head.unitsPerEm",
+    stdout=False,
+)
+base_units_per_em = int(base_units_per_em)
+print("Base font units_per_em:", base_units_per_em)
+
+base_ascender = py(
+    "utils/yq.py",
+    "tmp/z04/base.z04.00.ttf.data.yaml",
+    "hhea.ascender",
+    stdout=False,
+)
+base_ascender = int(base_ascender)
+print("Base font base_ascender:", base_ascender)
+
+base_descender = py(
+    "utils/yq.py",
+    "tmp/z04/base.z04.00.ttf.data.yaml",
+    "hhea.descender",
+    stdout=False,
+)
+base_descender = int(base_descender)
+print("Base font base_descender:", base_descender)
+
+
+py(
+    "ttf/ttf_set_data.py",
+    "tmp/z04/patch0.z04.02.ttf",
+    "--units-per-em", str(base_units_per_em),
+    "--ascender", str(base_ascender),
+    "--descender", str(base_descender),
+    "tmp/z04/patch0.z04.03.ttf",
+)
+
+py(
+    "ttf/dump_data_yaml.py",
+    "tmp/z04/patch0.z04.03.ttf",
+    "tmp/z04/patch0.z04.03.ttf.data.yaml",
+)
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z04/patch0.z04.03.ttf",
+)
+
+pass
+
+
+# In[42]:
+
+
+# modify advance_width of patch0.scaled.ttf to match base font half advance width
+print("Modifying advance_width of patch0.scaled.ttf to match base font half advance width...")
+py(
+    "ttf/cal_shift_x_csv.py",
+    "tmp/z04/patch0.z04.03.ttf.glyph.csv",
+    str(base_half_advance_width),
+    "tmp/z04/patch0.z04.04.shift_x.csv"
+)
+
+py(
+    "ttf/modify_advance_width.py",
+    "tmp/z04/patch0.z04.03.ttf",
+    "tmp/z04/patch0.z04.04.shift_x.csv",
+    "tmp/z04/patch0.z04.05.ttf"
+)
+
+# check shift_x result
+
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z04/patch0.z04.05.ttf",
+)
+
+py(
+    "utils/csv_rm_column.py",
+    "tmp/z04/patch0.z04.04.shift_x.csv",
+    "shift_x",
+    "tmp/z04/patch0.z04.06.expect.glyph.csv",
+)
+py(
+    "utils/diff.py",
+    "tmp/z04/patch0.z04.05.ttf.glyph.csv",
+    "tmp/z04/patch0.z04.06.expect.glyph.csv",
+)
+pass
+
+
+# In[ ]:
+
+
+shutil.copyfile(
+    "tmp/z04/patch0.z04.05.ttf",
+    "tmp/z04/patch0.z04.99.ttf",
+)
+
+pass
+
+
+# In[28]:
+
+
+# scale cjk font
+
+## Get the advance_width of char O
+print("Getting advance width of character 'O'...")
+cjk_half_advance_width = py(
+    "utils/csv_query.py",
+    "tmp/z04/cjk.z04.00.ttf.codepoint.csv",
+    "codepoint_dec", "79",
+    "advance_width"
+)
+print(f"CJK half advance width: {cjk_half_advance_width}")
+
+cjk_scale_factor = float(base_half_advance_width) / float(cjk_half_advance_width)
+print("CJK font scale factor:", cjk_scale_factor)
+
+
+# In[29]:
+
+
+# Scale cjk font
+print("Scaling cjk font...")
+py(
+    "ttf/scale_ttf.py",
+    "tmp/z04/cjk.z04.00.ttf",
+    "tmp/z04/cjk.z04.00.ttf.glyph.csv",
+    str(cjk_scale_factor),
+    "tmp/z04/cjk.z04.01.ttf"
+)
+
+# Dump scaled cjk font char CSV
+print("Dumping scaled cjk font char CSV...")
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z04/cjk.z04.01.ttf"
+)
+
+pass
+
+
+# In[43]:
+
+
+# modify advance_width of cjk.scaled.ttf to match base font half advance width
+print("Modifying advance_width of cjk.scaled.ttf to match base font half advance width...")
+py(
+    "ttf/cal_shift_x_csv.py",
+    "tmp/z04/cjk.z04.01.ttf.glyph.csv",
+    str(base_half_advance_width),
+    "tmp/z04/cjk.z04.02.shift_x.csv"
+)
+
+py(
+    "ttf/modify_advance_width.py",
+    "tmp/z04/cjk.z04.01.ttf",
+    "tmp/z04/cjk.z04.02.shift_x.csv",
+    "tmp/z04/cjk.z04.03.ttf"
+)
+
+# check shift_x result
+
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z04/cjk.z04.03.ttf",
+)
+
+py(
+    "utils/csv_rm_column.py",
+    "tmp/z04/cjk.z04.02.shift_x.csv",
+    "shift_x",
+    "tmp/z04/cjk.z04.04.expect.glyph.csv",
+)
+py(
+    "utils/diff.py",
+    "tmp/z04/cjk.z04.03.ttf.glyph.csv",
+    "tmp/z04/cjk.z04.04.expect.glyph.csv",
+)
+
+pass
+
+
+# In[44]:
+
+
+# y shift
+
+print("Getting common CJK characters from cjk font...")
 py(
     "ttf/filter_char_csv.py",
-    "tmp/cjk-Scaled.char.csv",
+    "tmp/z04/cjk.z04.03.ttf" ".codepoint.csv",
     "common_cjk",
-    "tmp/cjk-Scaled.common_cjk.char.csv"
+    "tmp/z04/cjk.z04.05.ccjk.csv"
 )
 
-# Calculate shift y offset
-print("Calculating shift Y offset...")
+base_anchor_y = base_big_max_height / 2
+print("Base font anchor y:", base_anchor_y)
+
+cjk_top_y = py(
+    "utils/csv_query.py",
+    "tmp/z04/cjk.z04.05.ccjk.csv",
+    "yMax", "__99%__", "yMax",
+    stdout=False,
+)
+print("CJK font top y:", cjk_top_y)
+cjk_top_y = int(cjk_top_y)
+
+cjk_low_y = py(
+    "utils/csv_query.py",
+    "tmp/z04/cjk.z04.05.ccjk.csv",
+    "yMin", "__1%__", "yMin",
+    stdout=False,
+)
+print("CJK font low y:", cjk_low_y)
+cjk_low_y = int(cjk_low_y)
+
+cjk_anchor_y = (cjk_top_y + cjk_low_y) / 2
+print("CJK font anchor y:", cjk_anchor_y)
+
+cjk_shift_y = int(base_anchor_y - cjk_anchor_y)
+print("CJK font shift y:", cjk_shift_y)
+
+
+# In[45]:
+
+
 py(
-    "ttf/cal_shift_y.py",
-    "tmp/base.big.char.csv",
-    "tmp/cjk-Scaled.common_cjk.char.csv",
-    "tmp/cjk-Scaled.shift_y_offset.yaml"
+    "ttf/ttf_shift_y.py",
+    "tmp/z04/cjk.z04.03.ttf",
+    str(cjk_shift_y),
+    "tmp/z04/cjk.z04.06.ttf"
 )
 
-# Read shift_y value from YAML using venv Python
-shift_y_value = py(
+pass
+
+
+# In[46]:
+
+
+shutil.copyfile(
+    "tmp/z04/cjk.z04.06.ttf",
+    "tmp/z04/cjk.z04.99.ttf",
+)
+
+
+# In[133]:
+
+
+ttf_milestone(5)
+
+
+# In[134]:
+
+
+# py(
+#     "ttf/filter_char_csv.py",
+#     "tmp/z05/base.z05.00.ttf.codepoint.csv",
+#     "ascii",
+#     "tmp/z05/base.z05.01.ascii.csv",
+# )
+
+py(
+    "ttf/filter_char_csv.py",
+    "tmp/z05/base.z05.00.ttf.codepoint.csv",
+    "upper,number",
+    "tmp/z05/base.z05.01.big.csv",
+)
+
+# ymin = py(
+#     "utils/csv_query.py",
+#     "tmp/z05/base.z05.01.big.csv",
+#     "yMin", "__MIN__", "yMin",
+#     stdout=False,
+# )
+ymax = py(
+    "utils/csv_query.py",
+    "tmp/z05/base.z05.01.big.csv",
+    "yMax", "__MAX__", "yMax",
+    stdout=False,
+)
+ymax = int(ymax)
+
+ymid = ymax / 2
+print("Big char mid y:", ymid)
+
+# ymin = py(
+#     "utils/csv_query.py",
+#     "tmp/z05/base.z05.01.ascii.csv",
+#     "yMin", "__MIN__", "yMin",
+#     stdout=False,
+# )
+# ymax = py(
+#     "utils/csv_query.py",
+#     "tmp/z05/base.z05.01.ascii.csv",
+#     "yMax", "__MAX__", "yMax",
+#     stdout=False,
+# )
+# yheight = int(ymax) - int(ymin)
+# print("ASCII height:", yheight)
+
+xAvgCharWidth = py(
     "utils/yq.py",
-    "tmp/cjk-Scaled.shift_y_offset.yaml",
-    "shift_y"
+    "tmp/z05/base.z05.00.ttf.data.yaml",
+    "os2.xAvgCharWidth",
+    stdout=False,
 )
-print(f"Shift Y value: {shift_y_value}")
+xAvgCharWidth = int(xAvgCharWidth)
+print("xAvgCharWidth:", xAvgCharWidth)
 
-# Apply shift y to scaled CJK font
-print("Applying shift Y to scaled CJK font...")
+yheight = xAvgCharWidth * 2 * 17 / 16
+print("Font height:", yheight)
+
+ascender = int(ymid + yheight / 2)
+print("New ascender:", ascender)
+descender = int(ymid - yheight / 2)
+print("New descender:", descender)
+
+unitsPerEm = py(
+    "utils/yq.py",
+    "tmp/z05/base.z05.00.ttf.data.yaml",
+    "head.unitsPerEm",
+    stdout=False,
+)
+print("unitsPerEm:", unitsPerEm)
+
+pass
+
+
+# In[135]:
+
+
+fontkey_to_fontdata_dict = {}
+
+for font_key in FONT_KEY_LIST:
+    fontkey_to_fontdata_dict[font_key] = {
+        "codepoint_dl": read_csv(f"tmp/z05/{font_key}.z05.00.ttf.codepoint.csv"),
+        "glyph_dl": read_csv(f"tmp/z05/{font_key}.z05.00.ttf.glyph.csv"),
+        "font_key": font_key,
+    }
+
+    src_codepoint_dl = fontkey_to_fontdata_dict[font_key]["codepoint_dl"]
+    glyph_dl = fontkey_to_fontdata_dict[font_key]["glyph_dl"]
+
+    for d in src_codepoint_dl:
+        d['codepoint_int'] = int(d['codepoint_dec'])
+
+    src_codepoint_dl = copy.deepcopy(src_codepoint_dl)
+    for d in src_codepoint_dl:
+        d["src"] = font_key
+        d["src_glyph_index"] = d["glyph_index"]
+    fontkey_to_fontdata_dict[font_key]["src_codepoint_dl"] = src_codepoint_dl
+
+    codepointint_to_src_d_dict = {d['codepoint_int']: d for d in src_codepoint_dl}
+    fontkey_to_fontdata_dict[font_key]["codepointint_to_src_d_dict"] = codepointint_to_src_d_dict
+
+base_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['base']["codepointint_to_src_d_dict"]
+patch0_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['patch0']["codepointint_to_src_d_dict"]
+cjk_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['cjk']["codepointint_to_src_d_dict"]
+
+output_codepointint_to_src_d_dict = copy.deepcopy(base_codepointint_to_src_d_dict)
+
+output_codepointint_to_src_d_dict[38] = patch0_codepointint_to_src_d_dict[38]  # '&'
+output_codepointint_to_src_d_dict[64] = patch0_codepointint_to_src_d_dict[64]  # '@'
+
+for codepointint, src_d in cjk_codepointint_to_src_d_dict.items():
+    if codepointint not in output_codepointint_to_src_d_dict:
+        output_codepointint_to_src_d_dict[codepointint] = src_d
+
+output_codepoint_dl = list(output_codepointint_to_src_d_dict.values())
+output_codepoint_dl = list(sorted(output_codepoint_dl, key=lambda d: d['codepoint_int']))
+tmp_glyph_index = 1
+src_src_glyph_index_to_glyph_index_dict = {}
+output_glyphclone_dl = []
+for d in output_codepoint_dl:
+    src = d['src']
+    src_glyph_index = d['src_glyph_index']
+    key = (src, src_glyph_index)
+    if key in src_src_glyph_index_to_glyph_index_dict:
+        dest_glyph_index = src_src_glyph_index_to_glyph_index_dict[key]
+    else:
+        src_src_glyph_index_to_glyph_index_dict[key] = tmp_glyph_index
+        dest_glyph_index = tmp_glyph_index
+
+        output_glyphclone_dl.append({
+            "glyph_index": str(dest_glyph_index),
+            "src": src,
+            "src_glyph_index": src_glyph_index,
+        })
+
+        tmp_glyph_index += 1
+
+    dest_glyph_index_str = str(dest_glyph_index)
+    d['glyph_index'] = dest_glyph_index_str
+
+    del d['codepoint_int']
+
+col_list = [
+    "glyph_index","src","src_glyph_index"
+]
+write_csv(
+    output_glyphclone_dl,
+    col_list,
+    "tmp/z05/output.z05.01.picksrc.glyphclone.csv",
+)
+
+col_list = [
+    "codepoint","codepoint_dec","glyph_index","glyph_name","advance_width",
+    "lsb","xMin","yMin","xMax","yMax",
+    "width","height","width_unit",
+    "is_empty_glyph","is_composite","num_contours","num_glyph",
+    "cmap_used","glyf_used","gsub_used","gpos_used",
+    "has_glyf","has_hmtx","has_vmtx",
+    "src","src_glyph_index"
+]
+
+write_csv(
+    output_codepoint_dl,
+    col_list,
+    "tmp/z05/output.z05.01.picksrc.codepoint.csv",
+)
+
+
+# In[151]:
+
+
+# gen string
+
+name_list = []
+
+for font_key in FONT_KEY_LIST:
+    name = py(
+        "utils/yq.py",
+        f"tmp/z01/{font_key}.z01.00.ttf.data.yaml",
+        "name.family_name",
+        stdout=False,
+    )
+    name_list.append(name)
+    print(f"{font_key} font name: {name}")
+
+name_list_str = " + ".join(name_list)
+long_description = f"Luzi82, merging {name_list_str}"
+
+
+# In[154]:
+
+
+# Get datetime string
+YYYYMMDDHHMMSS = get_datetime_string()
+print(f"Current datetime: {YYYYMMDDHHMMSS}")
+
 py(
-    "ttf/font_shift_y.py",
-    "tmp/cjk-Scaled.ttf",
-    str(shift_y_value),
-    "tmp/cjk-Scaled-Shifted.ttf"
+    "ttf/ttf_build.py",
+    "tmp/z05/output.z05.01.picksrc.codepoint.csv",
+    "tmp/z05/output.z05.01.picksrc.glyphclone.csv",
+    "base:tmp/z05/base.z05.00.ttf,patch0:tmp/z05/patch0.z05.00.ttf,cjk:tmp/z05/cjk.z05.00.ttf",
+    "--default=base",
+    f"--font-name=__FONT_NAME__",
+    "--url-vendor=https://github.com/luzi82/mono-merge/blob/main/CodeCJK/CodeCJK.md",
+    f"--name-unique-id=__FONT_NAME__-Luzi82-{YYYYMMDDHHMMSS}",
+    "--license=SIL Open Font License, Version 1.1",
+    f"--copyright={long_description}",
+    "--manufacturer=Luzi82",
+    f"--designer={long_description}",
+    f"--version={YYYYMMDDHHMMSS}",
+    f"--ascender={ascender}",
+    f"--descender={descender}",
+    f"--xAvgCharWidth={xAvgCharWidth}",
+    f"--unitsPerEm={unitsPerEm}",
+    "tmp/z05/output.z05.02.ttf"
 )
 
-# Dump shifted font char CSV
-print("Dumping shifted font char CSV...")
 py(
     "ttf/dump_char_csv.py",
-    "tmp/cjk-Scaled-Shifted.ttf",
-    "tmp/cjk-Scaled-Shifted.char.csv"
+    "tmp/z05/output.z05.02.ttf",
 )
-
-# Pick chars from base font and shifted scaled CJK font
-print("Picking characters from base font and shifted scaled CJK font...")
 py(
-    "ttf/pick_font.py",
-    "tmp/base.char.csv,tmp/cjk-Scaled-Shifted.char.csv",
-    "tmp/pick.char.csv"
+    "ttf/dump_data_yaml.py",
+    "tmp/z05/output.z05.02.ttf",
+    "tmp/z05/output.z05.02.ttf.data.yaml",
 )
 
-# Calculate font meta
-print("Calculating font meta...")
+pass
+
+
+# In[166]:
+
+
+# final checking
+
+check_font("tmp/z05/output.z05.02.ttf")
+
 py(
-    "ttf/cal_meta.py",
-    "tmp/base.ascii.char.csv",
-    "tmp/base.big.char.csv",
-    "--height-multiplier", "1.3",
-    "tmp/pick.meta.yaml"
+    "utils/csv_rm_column.py",
+    "tmp/z05/output.z05.01.picksrc.codepoint.csv",
+    "glyph_name,src,src_glyph_index,cmap_used",
+    "tmp/z05/output.z05.03.expect.codepoint.csv",
 )
-
-# Merge fonts
-print("Merging fonts...")
 py(
-    "ttf/merge_font.py",
-    "tmp/base.ttf,tmp/cjk-Scaled-Shifted.ttf",
-    "tmp/pick.char.csv",
-    "tmp/pick.meta.yaml",
-    "--input-info-meta-yaml", str(project_root / "CodeCJK/codecjk_meta.yaml"),
-    "--font-name", OUTPUT_FONT_FULL_NAME,
-    "--font-version", f"{OUTPUT_FONT_VERSION}.{YYYYMMDDHHMMSS}",
-    "--override-datetime", YYYYMMDDHHMMSS,
-    "--output", f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
+    "utils/csv_rm_column.py",
+    "tmp/z05/output.z05.02.ttf.codepoint.csv",
+    "glyph_name,cmap_used",
+    "tmp/z05/output.z05.03.actual.codepoint.csv",
 )
-
-# Dump output font char CSV
-print("Dumping output font char CSV...")
 py(
-    "ttf/dump_char_csv.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
-    f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular.char.csv"
+    "utils/diff.py",
+    "tmp/z05/output.z05.03.expect.codepoint.csv",
+    "tmp/z05/output.z05.03.actual.codepoint.csv",
 )
 
-# Compare box metrics between output font and picked chars
-print("Comparing box metrics between output font and picked characters...")
-py(
-    "ttf/csv_compare_box.py",
-    f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular.char.csv",
-    "tmp/pick.char.csv"
-)
-
-# Check if output font is mono width
-print("Checking if output font is mono width...")
 py(
     "ttf/check_mono_width.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
+    "tmp/z05/output.z05.02.ttf",
 )
 
-# Create preview images
-print("Creating preview images...")
-py(
-    "font_preview.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
-    "中あ강A2 1Il| 0O",
-    "output/preview"
+
+# In[156]:
+
+
+linux_cmd(
+    "ttfautohint",
+    "--ignore-restrictions",
+    "-f","none","--fallback-scaling",
+    "tmp/z05/output.z05.02.ttf",
+    "tmp/z05/output.z05.04.ttf",
 )
+
+check_font("tmp/z05/output.z05.04.ttf")
+
+
+# In[157]:
+
+
+py(
+    "ttf/dump_char_csv.py",
+    "tmp/z05/output.z05.04.ttf",
+)
+
+py(
+    "ttf/filter_char_csv.py",
+    "tmp/z05/output.z05.04.ttf.codepoint.csv",
+    "ascii,upper,number,common_cjk",
+    "tmp/z05/output.z05.05.ttf.preview_chars.csv",
+)
+
+maxy_char_codepoint = py(
+    "utils/csv_query.py",
+    "tmp/z05/output.z05.05.ttf.preview_chars.csv",
+    "yMax", "__MAX__", "codepoint_dec",
+    stdout=False,
+)
+maxy_char = chr(int(maxy_char_codepoint))
+print("Character with max yMax in preview chars:", maxy_char, f"(U+{int(maxy_char_codepoint):04X})")
+miny_char_codepoint = py(
+    "utils/csv_query.py",
+    "tmp/z05/output.z05.05.ttf.preview_chars.csv",
+    "yMin", "__MIN__", "codepoint_dec",
+    stdout=False,
+)
+miny_char = chr(int(miny_char_codepoint))
+print("Character with min yMin in preview chars:", miny_char, f"(U+{int(miny_char_codepoint):04X})")
+
+FONT_SIZE_LIST = list(range(8, 17))+list(range(18, 25, 2))+[36,48]
+
+for font_size in FONT_SIZE_LIST:
+    py(
+        "font_preview.py",
+        "tmp/z05/output.z05.04.ttf",
+        f"你好嗎 0O1Il| $@& {maxy_char}{miny_char}",
+        f"tmp/z05/output.z05.06.{font_size:02d}",
+        "--font-size", str(font_size),
+    )
+
 py(
     "font_preview.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
-    "中あ강A2 1Il| 0O",
-    "output/debug",
+    "tmp/z05/output.z05.04.ttf",
+    f"你好嗎 0O1Il| $@& {maxy_char}{miny_char}",
+    f"tmp/z05/output.z05.06.debug",
     "--debug"
 )
 
-# Generate variant fonts with replaced metadata
-print("Generating variant fonts with replaced metadata...")
-py(
-    "ttf/ttf_replace_meta.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
-    OUTPUT_FONT_FULL_NAME,
+pass
+
+
+# In[ ]:
+
+
+fontname_list = [
     OUTPUT_FONT_NAME,
-    f"output/{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf"
-)
-
-py(
-    "ttf/ttf_unmono.py",
-    f"output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf",
-    f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf"
-)
-
-py(
-    "ttf/ttf_replace_meta.py",
-    f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf",
     OUTPUT_FONT_FULL_NAME,
-    f"P{OUTPUT_FONT_FULL_NAME}",
-    f"output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf"
-)
+]
+monospace_config_list = [
+    {'prefix': '', 'monospace': True},
+    {'prefix': 'P', 'monospace': False},
+]
 
-py(
-    "ttf/ttf_replace_meta.py",
-    f"tmp/{OUTPUT_FONT_FULL_NAME}-Regular-Unmono.ttf",
-    OUTPUT_FONT_FULL_NAME,
-    f"P{OUTPUT_FONT_NAME}",
-    f"output/P{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf"
-)
+cross_list = itertools.product(fontname_list, monospace_config_list)
 
-print("\n" + "="*60)
-print("Build completed successfully!")
-print("="*60)
-print(f"Main output: output/{OUTPUT_FONT_FULL_NAME}-Regular.ttf")
-print(f"Variant with timestamp: output/{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf")
-print(f"Proportional variants: output/P{OUTPUT_FONT_FULL_NAME}-Regular.ttf, output/P{OUTPUT_FONT_NAME}-{YYYYMMDDHHMMSS}-Regular.ttf")
-print(f"Preview images: output/preview.png, output/debug.png")
+for (fontname, monospace_config) in cross_list:
+    prefix = monospace_config['prefix']
+    monospace = monospace_config['monospace']
+
+    output_ttf_path = f"output/{prefix}{fontname}-Regular-{YYYYMMDDHHMMSS}.ttf"
+
+    if monospace:
+        shutil.copyfile(
+            "tmp/z05/output.z05.04.ttf",
+            f"tmp/z05/tmp0.ttf",
+        )
+    else:
+        py(
+            "ttf/ttf_unmono.py",
+            "tmp/z05/output.z05.04.ttf",
+            f"tmp/z05/tmp0.ttf",
+        )
+
+
+    py(
+        "ttf/ttf_replace_meta.py",
+        "tmp/z05/tmp0.ttf",
+        "__FONT_NAME__", prefix+fontname,
+        "tmp/z05/tmp1.ttf",
+    )
+
+    check_font(f"tmp/z05/tmp1.ttf")
+
+    shutil.copyfile(
+        "tmp/z05/tmp1.ttf",
+        output_ttf_path,
+    )
+

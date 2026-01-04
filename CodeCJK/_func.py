@@ -167,7 +167,7 @@ def read_yaml_value(yaml_file, key):
     return data.get(key)
 
 
-def download_fonts(src_font_list):
+def download_fonts(src_font_list, target_dir):
     """Download and prepare fonts based on SRC_FONT_LIST configuration.
     
     Args:
@@ -187,7 +187,7 @@ def download_fonts(src_font_list):
         print(f"\n--- Processing font: {font_id} ---")
         
         # Target TTF file in tmp folder
-        target_ttf = Path(f"tmp/{ttf_filename}")
+        target_ttf = Path(f"{target_dir}/{ttf_filename}")
         
         if not target_ttf.exists():
             # Check if file exists in input folder
@@ -203,7 +203,7 @@ def download_fonts(src_font_list):
                     
                     # Extract zip filename from URL
                     zip_filename = zip_url.split("/")[-1]
-                    zip_path = Path(f"tmp/{zip_filename}")
+                    zip_path = Path(f"{target_dir}/{zip_filename}")
                     
                     # Download zip if not exists
                     if not zip_path.exists():
@@ -211,7 +211,7 @@ def download_fonts(src_font_list):
                     
                     # Extract zip
                     extract_dir_name = zip_filename.replace(".zip", "")
-                    extract_dir = Path(f"tmp/{extract_dir_name}")
+                    extract_dir = Path(f"{target_dir}/{extract_dir_name}")
                     extract_zip(zip_path, extract_dir)
                     
                     # Copy TTF file from extracted location
@@ -250,7 +250,7 @@ def download_fonts(src_font_list):
             print(f"MD5 checksum: {md5_hash.hexdigest()}")
         
         # Copy to {font_id}.ttf for processing
-        output_path = Path(f"tmp/{font_id}.ttf")
+        output_path = Path(f"{target_dir}/{font_id}.ttf")
         print(f"Copying {target_ttf} to {output_path}")
         shutil.copy(target_ttf, output_path)
 
