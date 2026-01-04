@@ -17,9 +17,19 @@ abcdefghijklmnopqrstuvwxyz
 {}|:"<>?
 []\;',./
 
-
-±±±±|
+XXXXXXXXXXXXXXXXXXXX|
+０１２３４５６７８９|
+ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ|
+ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ|
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|XXXXXXXXXXXXXXXXXXXXX|
+～！＃＄％︿＆＊（）＿＋‵—＝|
+｛｝｜：＂＜＞？|XXXXXXXXXXXXX|
+［］＼；＇，．／|
+XXXX|XXXXXXXXXXX|
+，。|
 「」|
+XXXX|
+±±±±|
 ⸺|
 XXXX|X|
 ⸻|
