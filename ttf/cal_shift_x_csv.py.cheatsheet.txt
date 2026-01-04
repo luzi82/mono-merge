@@ -4,9 +4,13 @@ to
 
 * args
   * input_csv
-    * example: CodeCJK/build/tmp/base.z01.00.ttf.glyph.csv
+    * example: CodeCJK/build/tmp/z01/base.z01.00.ttf.glyph.csv
+  * --update-width-unit
+    * optional
+    * format: glyph_id0:width_unit0,glyph_id1:width_unit1
   * advance_width
   * output_csv
+* if glyph_id in --update-width-unit, update the width_unit value
 * new_advance_width = advance_width * width_unit
 * if is_empty_glyph=True, shift_x=0
   * notice if is_empty_glyph=True, lsb, xMin, xMax will be empty string
