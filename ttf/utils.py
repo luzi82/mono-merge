@@ -20,6 +20,7 @@ def is_cjk_char(codepoint):
     # CJK Unified Ideographs Extension F (0x2CEB0-0x2EBEF)
     # CJK Compatibility Ideographs (0xF900-0xFAFF)
     # CJK Compatibility Ideographs Supplement (0x2F800-0x2FA1F)
+    # CJK Symbols and Punctuation (0x3000-0x303F)
     # Hiragana (0x3040-0x309F)
     # Katakana (0x30A0-0x30FF)
     # Hangul Syllables (0xAC00-0xD7AF)
@@ -33,6 +34,7 @@ def is_cjk_char(codepoint):
         (0x2CEB0 <= codepoint <= 0x2EBEF) or
         (0xF900 <= codepoint <= 0xFAFF) or
         (0x2F800 <= codepoint <= 0x2FA1F) or
+        (0x3000 <= codepoint <= 0x303F) or
         (0x3040 <= codepoint <= 0x309F) or
         (0x30A0 <= codepoint <= 0x30FF) or
         (0xAC00 <= codepoint <= 0xD7AF)
