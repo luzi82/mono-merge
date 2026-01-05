@@ -2,7 +2,8 @@
 
 ## ???
 
-* 把 CYRILLIC 和 GREEK 撥進半形文字
+* 修正半形/全形的判定
+* 讓 Inconsolata 填補更多空缺
 
 ## 005
 

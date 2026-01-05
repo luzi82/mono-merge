@@ -22,7 +22,7 @@ from _func import * # just import all helper functions
 
 
 OUTPUT_FONT_NAME = "CodeCJK"
-OUTPUT_FONT_VERSION = "005"
+OUTPUT_FONT_VERSION = "006"
 OUTPUT_FONT_FULL_NAME = f"{OUTPUT_FONT_NAME}{OUTPUT_FONT_VERSION}"
 
 SRC_FONT_LIST = [
@@ -891,7 +891,7 @@ for font_key in FONT_KEY_LIST:
     glyph_dl = fontkey_to_fontdata_dict[font_key]["glyph_dl"]
 
     for d in src_codepoint_dl:
-        d['codepoint_int'] = int(d['codepoint_dec'])
+        codepoint_int = d['codepoint_int'] = int(d['codepoint_dec'])
 
     src_codepoint_dl = copy.deepcopy(src_codepoint_dl)
     for d in src_codepoint_dl:
@@ -906,31 +906,119 @@ base_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['base']["codepointint
 patch0_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['patch0']["codepointint_to_src_d_dict"]
 cjk_codepointint_to_src_d_dict = fontkey_to_fontdata_dict['cjk']["codepointint_to_src_d_dict"]
 
-output_codepointint_to_src_d_dict = copy.deepcopy(base_codepointint_to_src_d_dict)
+codepointint_set = set()
+codepointint_set.update(base_codepointint_to_src_d_dict.keys())
+codepointint_set.update(patch0_codepointint_to_src_d_dict.keys())
+codepointint_set.update(cjk_codepointint_to_src_d_dict.keys())
+codepointint_list = list(sorted(codepointint_set))
 
-output_codepointint_to_src_d_dict[38] = patch0_codepointint_to_src_d_dict[38]  # '&'
-output_codepointint_to_src_d_dict[64] = patch0_codepointint_to_src_d_dict[64]  # '@'
+output_codepointint_to_select_d_dict = {}
 
-for codepointint, src_d in cjk_codepointint_to_src_d_dict.items():
-    add = False
-    c = chr(codepointint)
-    eaw = unicodedata.east_asian_width(c)
-    if codepointint not in output_codepointint_to_src_d_dict:
-        add = True
-    elif c.isalpha() and c.isascii():
-        add = False
-    elif 'LATIN' in unicodedata.name(c).upper():
-        add = False
-    elif codepointint <= 0xFF:
-        add = False
-    elif eaw in ['F', 'W']:
-        add = True
-    elif eaw == ['Na', 'H']:
-        add = False
-    elif int(src_d['width_unit']) > int(output_codepointint_to_src_d_dict[codepointint]['width_unit']):
-        add = True
-    if add:
-        output_codepointint_to_src_d_dict[codepointint] = src_d
+for codepointint in codepointint_list:
+    select_d = {}
+    # codepoint_dec = d['codepoint_dec']
+    select_d['codepoint'] = f"U+{codepointint:04X}"
+    select_d['codepoint_int'] = codepointint
+    codepoint_dec = str(codepointint)
+    select_d['codepoint_dec'] = codepoint_dec
+    select_d['eaw'] = unicodedata.east_asian_width(chr(int(codepoint_dec)))
+    select_d['name'] = unicodedata.name(chr(int(codepoint_dec)), '')
+    output_codepointint_to_select_d_dict[codepointint] = select_d
+
+hardcode_widthunit_dl = read_csv(str(project_root / "CodeCJK/widthunit.csv"))
+for d in hardcode_widthunit_dl:
+    codepoint_min_int = int(d['codepoint_min'])
+    codepoint_max_int = int(d['codepoint_max'])
+    widthunit_int = int(d['width_unit'])
+    for codepointint in range(codepoint_min_int, codepoint_max_int + 1):
+        if codepointint in output_codepointint_to_select_d_dict:
+            output_codepointint_to_select_d_dict[codepointint]['hardcode_widthunit_int'] = widthunit_int
+            output_codepointint_to_select_d_dict[codepointint]['hardcode_widthunit'] = str(widthunit_int)
+
+for codepointint, select_d in output_codepointint_to_select_d_dict.items():
+    target_widthunit_int = 1
+    if 'hardcode_widthunit_int' in select_d:
+        target_widthunit_int = select_d['hardcode_widthunit_int']
+    elif select_d['eaw'] in ['F', 'W']:
+        target_widthunit_int = 2
+    else:
+        target_widthunit_int = 1
+    select_d['target_widthunit_int'] = target_widthunit_int
+    select_d['target_widthunit'] = str(target_widthunit_int)
+
+    base_widthunit   = select_d['base']   = base_codepointint_to_src_d_dict.get(codepointint, {}).get('width_unit', '')
+    patch0_widthunit = select_d['patch0'] = patch0_codepointint_to_src_d_dict.get(codepointint, {}).get('width_unit', '')
+    cjk_widthunit    = select_d['cjk']    = cjk_codepointint_to_src_d_dict.get(codepointint, {}).get('width_unit', '')
+    target_diff = float('inf')
+    select_src = ''
+    for src, widthunit in [('base', base_widthunit), ('patch0', patch0_widthunit), ('cjk', cjk_widthunit)]:
+        if widthunit != '':
+            diff = abs(int(widthunit) - target_widthunit_int)
+            if diff < target_diff:
+                target_diff = diff
+                select_src = src
+    select_d['src'] = select_src
+
+# hardcode src selection
+output_codepointint_to_select_d_dict[38]['src'] = 'patch0'  # '&'
+output_codepointint_to_select_d_dict[64]['src'] = 'patch0'  # '@'
+output_codepointint_to_select_d_dict[65378]['src'] = 'cjk'
+output_codepointint_to_select_d_dict[65379]['src'] = 'cjk'
+
+for codepointint, select_d in output_codepointint_to_select_d_dict.items():
+    src = select_d['src']
+    if src == 'base':
+        src_d = base_codepointint_to_src_d_dict[codepointint]
+    elif src == 'patch0':
+        src_d = patch0_codepointint_to_src_d_dict[codepointint]
+    elif src == 'cjk':
+        src_d = cjk_codepointint_to_src_d_dict[codepointint]
+    else:
+        continue
+    select_d['widthunit'] = src_d['width_unit']
+
+output_select_dl = list(output_codepointint_to_select_d_dict.values())
+output_select_dl = list(sorted(output_select_dl, key=lambda d: d['codepoint_int']))
+
+output_codepointint_to_src_d_dict = {}
+
+for codepointint, select_d in output_codepointint_to_select_d_dict.items():
+    src = select_d['src']
+    if src == 'base':
+        src_d = base_codepointint_to_src_d_dict[codepointint]
+    elif src == 'patch0':
+        src_d = patch0_codepointint_to_src_d_dict[codepointint]
+    elif src == 'cjk':
+        src_d = cjk_codepointint_to_src_d_dict[codepointint]
+    else:
+        continue
+    output_codepointint_to_src_d_dict[codepointint] = src_d
+
+
+# for codepointint, src_d in cjk_codepointint_to_src_d_dict.items():
+#     add = False
+#     c = chr(codepointint)
+#     eaw = unicodedata.east_asian_width(c)
+#     if codepointint not in output_codepointint_to_src_d_dict:
+#         add = True
+#     elif c.isalpha() and c.isascii():
+#         add = False
+#     elif 'LATIN' in unicodedata.name(c):
+#         add = False
+#     elif 'CYRILLIC' in unicodedata.name(c):
+#         add = False
+#     elif 'GREEK' in unicodedata.name(c):
+#         add = False
+#     elif codepointint <= 0xFF:
+#         add = False
+#     elif eaw in ['F', 'W']:
+#         add = True
+#     elif eaw == ['Na', 'H']:
+#         add = False
+#     elif int(src_d['width_unit']) > int(output_codepointint_to_src_d_dict[codepointint]['width_unit']):
+#         add = True
+#     if add:
+#         output_codepointint_to_src_d_dict[codepointint] = src_d
 
 output_codepoint_dl = list(output_codepointint_to_src_d_dict.values())
 output_codepoint_dl = list(sorted(output_codepoint_dl, key=lambda d: d['codepoint_int']))
@@ -958,14 +1046,16 @@ for d in output_codepoint_dl:
     dest_glyph_index_str = str(dest_glyph_index)
     d['glyph_index'] = dest_glyph_index_str
 
-    del d['codepoint_int']
 
-col_list = [
-    "glyph_index","src","src_glyph_index"
-]
+write_csv(
+    output_select_dl,
+    ["codepoint","codepoint_dec","eaw","base","patch0","cjk","src","widthunit","name"],
+    "tmp/z05/output.z05.01.picksrc.width_unit.csv",
+)
+
 write_csv(
     output_glyphclone_dl,
-    col_list,
+    ["glyph_index","src","src_glyph_index"],
     "tmp/z05/output.z05.01.picksrc.glyphclone.csv",
 )
 
@@ -1372,4 +1462,6 @@ mkdir xxx && \
 cd xxx && \
 python ../CodeCJK/build.py
 '''
+
+pass
 

@@ -2,6 +2,7 @@
 Helper functions for CodeCJK build script.
 """
 
+import copy
 import csv
 import hashlib
 import os
@@ -347,4 +348,8 @@ def write_csv(data, columns, output_csv):
         writer = csv.DictWriter(f, fieldnames=columns)
         writer.writeheader()
         for row in data:
-            writer.writerow(row)
+            cloned_row = copy.deepcopy(row)
+            for k in row.keys():
+                if k not in columns:
+                    del cloned_row[k]
+            writer.writerow(cloned_row)
