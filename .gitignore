@@ -9,6 +9,7 @@ output/
 temp/
 logs/
 tmp/
+xxx/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
